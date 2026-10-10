@@ -1,0 +1,580 @@
+Problem statement:CIVIC TECH
+
+FEATURES:
+-live public work map
+-project wise dashboard..like live tracking in amazon
+	-consolidated dashboard for muncipality
+	-users or citizens can view the constructions as per the pincode they enter 
+	-ui wise like gmaps (ie) upon looking at the location we can scroll down to see the progress
+	-query raising and feedback system upon clicking the particular project
+		-users can ask questions
+		-monitor the progress and raise questions regarding lags
+		-raise noise and dust complaints (provided they were not intimated earlier)
+		-will get contact details of the work handler..for contact
+
+-warning to residents in the local area for construction hazards
+	-notifications are released when there is a possibility of excessive noise or dust along with the estimated timings
+
+-inter departmental coordination
+	-digsync(make sure the overlaps between projects in different departments are handled and scheduled properly)
+	
+-intimate gmaps about construction and road closures for better commute
+
+
+	
+if needed:
+	-ai based progress verification
+	
+	
+PROMPT:
+# MASTER DEVELOPMENT PROMPT — CIVICGRID
+## Smart Public Works Transparency, Citizen Engagement & Interdepartmental Coordination Platform
+
+Act as a senior full-stack engineer, product designer, geospatial systems engineer, and software architect. Build a production-quality CivicTech web application called **CivicGrid** that improves transparency, accountability, citizen engagement, and coordination in municipal public works.
+
+Do not build just a static UI prototype. Build a functional, responsive, full-stack application with a working database, realistic seed data, interactive maps, dashboards, authentication, role-based access, APIs, and end-to-end workflows.
+
+Make sensible implementation decisions independently. Do not stop after generating a project plan or displaying mockups. Implement the application, run it, test critical workflows, and fix errors.
+
+---
+
+# 1. PROBLEM STATEMENT
+
+Residents regularly experience road construction, drainage repairs, pipeline installation, road resurfacing, and other public infrastructure projects without reliable information about what is happening, which department is responsible, when the work will finish, or why deadlines are missed.
+
+Information about public works is scattered across municipal departments, contractors, notice boards, and informal communication channels.
+
+Different departments frequently schedule work independently, causing the same road to be excavated multiple times within a short period. Citizens lack a simple way to track progress, raise questions, report hazards, or obtain accountability.
+
+Construction-related dust, noise, road closures, and safety hazards also affect residents and local businesses without sufficient advance notice.
+
+CivicGrid addresses these problems through a unified public works information and coordination platform.
+
+## Product vision
+
+Create a single digital platform where:
+
+- Citizens can discover public works near their homes.
+- Residents can track construction like an e-commerce order, from initiation to completion.
+- Municipal officials can monitor all projects through a consolidated dashboard.
+- Citizens can ask project-specific questions and raise complaints.
+- Residents receive advance warnings about construction disruptions.
+- Departments coordinate excavation schedules through an intelligent conflict-detection engine called DigSync.
+- Construction updates, deadlines, delays, and completion records remain traceable.
+- The platform can eventually integrate with Google Maps or other navigation services to share road closure information.
+
+The experience should feel like a combination of Google Maps, an e-commerce order-tracking interface, a modern issue-reporting portal, and a municipal operations dashboard.
+
+---
+
+# 2. TECHNOLOGY STACK
+
+Use the following stack unless an actual compatibility issue requires a documented alternative.
+
+## Frontend
+- React with Vite.
+- TypeScript.
+- Tailwind CSS.
+- shadcn/ui for consistent, accessible components.
+- Lucide icons.
+- React Router.
+- TanStack Query for API data fetching and caching.
+- React Hook Form and Zod for form validation.
+- Leaflet with OpenStreetMap tiles for the interactive map.
+- Recharts for charts and analytics.
+- A lightweight toast notification library.
+
+## Backend
+- Python with FastAPI.
+- Pydantic for request and response validation.
+- SQLAlchemy 2.x.
+- Alembic for database migrations.
+- PostgreSQL with PostGIS for geospatial queries.
+- JWT-based authentication with secure password hashing.
+- Role-based authorization enforced by the backend.
+- WebSockets or server-sent events where useful for live dashboard updates.
+
+## Infrastructure
+- Docker and Docker Compose for local development.
+- Environment variables managed through `.env`.
+- Seed scripts for realistic demonstration data.
+- Pytest for backend tests.
+- Vitest and React Testing Library for frontend tests.
+- OpenAPI documentation generated by FastAPI.
+
+Use a clear modular architecture. Keep the frontend and backend separated, and do not put all application logic in a single component or file.
+
+Provide a complete README with installation, environment configuration, database setup, migrations, seed commands, testing, and deployment instructions.
+
+---
+
+# 3. DESIGN SYSTEM AND USER EXPERIENCE
+
+Create a polished, contemporary, trustworthy civic operations product.
+
+## Visual direction
+
+Use a modern civic-tech aesthetic:
+
+- Deep navy or dark slate for navigation and primary text.
+- White and soft neutral backgrounds.
+- Restrained blue as the primary action color.
+- Green for completed work.
+- Amber for warnings and upcoming work.
+- Red for urgent hazards, overdue work, and severe conflicts.
+- Subtle borders, soft shadows, consistent spacing, and clean typography.
+- Inter or a similar readable sans-serif font.
+- Clear icons and meaningful empty states.
+- Smooth but restrained transitions.
+- Responsive layouts for desktop, tablet, and mobile.
+
+Avoid generic AI-generated landing-page aesthetics, excessive gradients, glassmorphism everywhere, oversized headings, meaningless decorative charts, and excessive rounded cards.
+
+Prioritize clarity, dense but readable operational information, and fast navigation.
+
+Use proper loading states, error states, confirmation dialogs, success messages, skeleton loaders, and accessible keyboard navigation.
+
+The product must look credible enough to demonstrate to municipal officials.
+
+## Application navigation
+
+Create separate experiences for:
+
+1. Public citizen portal.
+2. Authenticated citizen account.
+3. Department and contractor workspace.
+4. Municipal administrator dashboard.
+
+A user should only see the navigation and actions appropriate to their role.
+
+---
+
+# 4. CITIZEN PORTAL
+
+The public-facing portal should be usable without requiring account creation for basic project discovery.
+
+## 4.1 Home page
+
+Build a functional homepage containing:
+
+- CivicGrid branding and navigation.
+- A prominent search box asking users to enter a PIN code, locality, road name, or project ID.
+- An interactive map showing public works in the selected area.
+- A summary of active, upcoming, delayed, and completed projects.
+- A section showing projects near the selected location.
+- A section displaying upcoming construction disruptions.
+- A section for urgent public safety notices.
+- A quick action to report a construction hazard.
+- A quick action to browse projects by PIN code.
+
+The homepage should prioritize useful information over promotional marketing copy.
+
+Display the data's last-updated time and distinguish confirmed information from unverified reports.
+
+## 4.2 Search by PIN code
+
+Citizens must be able to enter an Indian PIN code, such as `600001`, to discover public works in the corresponding area.
+
+Implement the following workflow:
+
+1. Validate the PIN code format.
+2. Submit it to the backend.
+3. Retrieve projects associated with that service area.
+4. Display the results as a synchronized map and project list.
+5. Allow filtering by status, department, project type, and date.
+6. Allow sorting by proximity, start date, and expected completion.
+7. Show a useful empty state if no projects are found.
+
+Do not hardcode the assumption that a PIN code corresponds to one precise geographic point. Use a proper locality or service-area mapping. Support multiple localities where appropriate.
+
+For the initial demo, provide seed data for a few realistic Chennai-area PIN codes. Clearly identify the dataset as demonstration data rather than official municipal information.
+
+## 4.3 Google Maps-style project discovery
+
+Create a two-panel map experience on desktop:
+
+- Main area: interactive map.
+- Side panel: scrollable list of public works.
+- On mobile: full-width map with a bottom sheet or expandable project list.
+
+Features:
+
+- Zoom and pan.
+- Project markers with status-based icons or colors.
+- Roadwork and road closure overlays where available.
+- Cluster markers when multiple projects are close together.
+- Search and map bounds filtering.
+- A selected-project state.
+- Synchronization between map markers and the project list.
+- Fit-map-to-results action.
+- A clear legend.
+- A visible map data attribution.
+
+Clicking a marker must highlight the corresponding project in the list.
+
+Clicking a project card must focus the map on that project.
+
+Show the following information on each project preview:
+
+- Project title.
+- Project ID.
+- Work category.
+- Responsible department.
+- Current status.
+- Progress percentage, if supported by verified or recorded milestone data.
+- Planned completion date.
+- Whether the project is overdue.
+- Current road access or disruption information.
+
+Do not imply that a project's progress percentage is continuously measured if it is only updated periodically by officials.
+
+## 4.4 Project detail page
+
+Every project must have a dedicated page or drawer with a stable URL.
+
+Design it as a detailed tracking interface inspired by e-commerce order tracking.
+
+### Project header
+
+Show:
+
+- Project name and unique ID.
+- Department.
+- Executing contractor, if publicly available.
+- Location and affected road.
+- Project type.
+- Planned start date.
+- Original promised completion date.
+- Current expected completion date.
+- Current status.
+- Last official update.
+- A progress indicator.
+
+### Project timeline
+
+Use a vertical or horizontal milestone timeline.
+
+Possible milestones:
+
+1. Proposed.
+2. Approved.
+3. Scheduled.
+4. Work started.
+5. Excavation.
+6. Installation or repair.
+7. Inspection.
+8. Road restoration.
+9. Completed.
+
+Allow project-specific milestones so that road resurfacing, drainage work, and pipeline projects do not all require the same sequence.
+
+Each milestone should include:
+
+- Status.
+- Planned date.
+- Actual date, if available.
+- Update timestamp.
+- Notes from the responsible official.
+- Supporting photographs or documents, if available.
+
+Clearly distinguish planned, in-progress, completed, delayed, and blocked milestones.
+
+### Delay transparency
+
+If a project is delayed, display:
+
+- Original deadline.
+- Revised deadline, if officially approved.
+- Number of days overdue.
+- Published reason for the delay.
+- Date the reason was recorded.
+- Responsible department.
+- Next planned action.
+- Date of the next expected update.
+
+Do not fabricate explanations. If no official reason is available, show “Reason not yet provided by the responsible department.”
+
+Maintain a history of deadline changes instead of overwriting previous dates.
+
+### Project documents
+
+Allow authorized users to attach project documents, such as:
+
+- Public notices.
+- Work orders.
+- Approved schedules.
+- Inspection reports.
+- Completion certificates.
+
+Display only documents that are authorized for public access. Include uploader, timestamp, and document category.
+
+### Project-specific actions
+
+Include:
+
+- Ask a question.
+- Raise a complaint.
+- Report a safety hazard.
+- Report excessive dust or noise.
+- Subscribe to project updates.
+- View contact information for the responsible office.
+- Share the project link.
+
+---
+
+# 5. CITIZEN QUESTIONS, FEEDBACK AND COMPLAINTS
+
+Build a complete issue-management workflow attached to each project.
+
+## 5.1 Ask a question
+
+Residents can ask questions such as:
+
+- Why has this work been delayed?
+- When will the road reopen?
+- Why is the road being excavated again?
+- Which department is responsible?
+- Why was the completion date changed?
+
+Each question should have:
+
+- A unique reference ID.
+- Project association.
+- Question text.
+- Submission timestamp.
+- Optional supporting photograph.
+- Status.
+- Assigned department.
+- Official response.
+- Response timestamp.
+
+Statuses:
+
+- Submitted.
+- Acknowledged.
+- Under review.
+- Answered.
+- Closed.
+
+Allow public visibility of questions and official responses where appropriate, with moderation to prevent abuse or disclosure of personal information.
+
+Allow the submitting citizen to view their own submissions and receive status updates.
+
+## 5.2 Complaint management
+
+Support complaint categories such as:
+
+- Excessive dust.
+- Excessive noise.
+- Unsafe excavation.
+- Missing barricades.
+- Uncovered manholes.
+- Damaged road restoration.
+- Waterlogging.
+- Road access obstruction.
+- Work stalled without explanation.
+- Other construction-related issues.
+
+Each complaint should support:
+
+- Category.
+- Description.
+- Project ID, if known.
+- Location or map pin.
+- Optional photo.
+- Submission time.
+- Severity.
+- Assigned department.
+- Status.
+- Official resolution note.
+- Resolution evidence, if available.
+
+Use a workflow such as:
+
+Submitted → Triaged → Assigned → In Progress → Resolved → Citizen Feedback.
+
+Allow reopening when appropriate.
+
+Provide complaint tracking using a reference ID. Authenticated users should have a personal history of their complaints.
+
+Avoid exposing a citizen's phone number, email, or private details on a public complaint page.
+
+## 5.3 Duplicate complaint handling
+
+If multiple residents report the same issue at the same location, allow authorized operators to associate those reports with a common incident.
+
+Do not automatically discard new reports as duplicates. Preserve individual report records and their timestamps.
+
+Prioritize incidents based on severity, age, number of independent reports, and proximity to sensitive locations.
+
+---
+
+# 6. CONSTRUCTION HAZARD WARNINGS AND NOTIFICATIONS
+
+Build a notification system that informs residents before construction affects their daily activities.
+
+## 6.1 Hazard and disruption information
+
+Every project should be able to define expected disruptions:
+
+- Dust.
+- Noise.
+- Road closure.
+- Partial lane closure.
+- Restricted pedestrian access.
+- Heavy vehicle movement.
+- Water supply interruption, if applicable.
+- Other localized hazards.
+
+Each disruption record should include:
+
+- Type.
+- Geographic area or affected road segment.
+- Start date and time.
+- Expected end date and time.
+- Severity.
+- Source.
+- Last updated timestamp.
+- Whether the warning has been confirmed by an authorized official.
+
+## 6.2 Advance warnings
+
+Notify residents when:
+
+- A project is scheduled to begin near them.
+- A road closure is planned.
+- A noisy operation is expected.
+- A high-dust activity is scheduled.
+- The expected completion date changes.
+- A disruption is extended.
+- A safety hazard requires immediate attention.
+- A project is completed and the road is reopened.
+
+Support configurable advance-notice windows, such as 24 or 48 hours.
+
+The notification system should avoid sending repetitive messages for unchanged information.
+
+## 6.3 Local relevance
+
+Allow residents to subscribe using:
+
+- PIN code.
+- Selected locality.
+- A chosen map area.
+- Individual projects.
+
+Only notify a resident when the project intersects their selected service area or satisfies a defined proximity rule.
+
+Provide in-app notifications and email support. Design a clean adapter interface for future SMS and WhatsApp integration.
+
+Do not claim to send WhatsApp or SMS messages unless the corresponding provider is configured.
+
+Include notification preferences, unsubscribe controls, and delivery status where available.
+
+---
+
+# 7. DIGSYNC — INTERDEPARTMENTAL COORDINATION ENGINE
+
+DigSync is the main operational differentiator of CivicGrid.
+
+Its purpose is to prevent repeated excavation, overlapping road closures, and avoidable conflicts between municipal departments.
+
+Departments may include:
+
+- Water supply.
+- Drainage and sewerage.
+- Electricity.
+- Telecommunications.
+- Roads and highways.
+- Gas utilities.
+- Other municipal services.
+
+## 7.1 Unified project registry
+
+Each department should register planned and ongoing public works in a common system.
+
+Required fields include:
+
+- Project ID.
+- Department.
+- Work category.
+- Project geometry or affected road segment.
+- Planned start and completion dates.
+- Estimated duration.
+- Work status.
+- Excavation required: yes/no.
+- Affected lanes or road segments.
+- Dependencies.
+- Priority.
+- Authorized contact.
+- Project description.
+
+Enforce role-based access so that departments can manage their own projects while municipal coordinators can view and coordinate projects across departments.
+
+## 7.2 Spatial and temporal conflict detection
+
+Implement a real conflict-detection algorithm using PostGIS and backend business logic.
+
+A conflict candidate exists when two projects:
+
+1. Affect the same or nearby road segment or overlapping geographic area.
+2. Have overlapping or closely spaced construction periods.
+3. Could create a practical coordination problem.
+
+The engine should detect both simultaneous construction and sequential excavation risks.
+
+Examples:
+
+- Two departments plan excavation on the same street during the same week.
+- A road is scheduled for resurfacing shortly before a pipeline installation.
+- One project blocks access required by another.
+- A project is scheduled before a dependent utility repair is complete.
+
+Use configurable rules for spatial proximity and time windows.
+
+Do not flag every nearby project as a definite conflict. Label results as:
+
+- High-confidence conflict.
+- Potential conflict.
+- Informational overlap.
+
+Display why each conflict was detected, including the projects, departments, dates, locations, and rules involved.
+
+## 7.3 Conflict management interface
+
+Create a DigSync dashboard showing:
+
+- Total active projects.
+- Upcoming excavation projects.
+- High-priority conflicts.
+- Projects requiring coordination.
+- Resolved conflicts.
+- Estimated duplicated road disruption, where calculable.
+- Conflicts grouped by department and locality.
+
+Provide a map view with conflicting projects highlighted together.
+
+Each conflict record should support:
+
+- Review.
+- Assign a coordinating officer.
+- Add discussion notes.
+- Propose an alternative schedule.
+- Accept or reject the proposed schedule.
+- Record the decision.
+- Track resolution.
+- Maintain a complete audit history.
+
+## 7.4 Schedule recommendation engine
+
+Implement a simple, explainable scheduling recommendation engine.
+
+Given conflicting projects, propose alternative schedules that minimize:
+
+- Repeated excavation.
+- Total road closure duration.
+- Simultaneous disruption.
+- Conflicts with dependent projects.
+- Unnecessary idle time between compatible work phases.
+
+Respect fixed deadlines, project dependencies, operational constraints, and project priorities where
