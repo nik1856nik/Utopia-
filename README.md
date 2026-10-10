@@ -13,9 +13,9 @@ Launch the entire full-stack Utopia platform using the unified start script:
 ```
 
 The script automatically sets up the Python virtual environment, installs backend and frontend dependencies, frees up occupied ports, and launches both services:
-- **🌍 Web Application**: [http://localhost:8000](http://localhost:8000)
+- **🌍 Web Application**: [http://localhost:8000](http://localhost:5174)
 - **📡 Backend REST API**: [http://localhost:8001](http://localhost:8001)
-- **📚 Interactive API Documentation (Swagger)**: [http://localhost:8001/docs](http://localhost:8001/docs) or [http://localhost:8000/docs](http://localhost:8000/docs)
+- **📚 Interactive API Documentation (Swagger)**: [http://localhost:8001/docs](http://localhost:8001/docs)
 - **🩺 Health Check**: [http://localhost:8001/api/health](http://localhost:8001/api/health)
 
 Press `Ctrl+C` in the terminal to stop all running services cleanly.
