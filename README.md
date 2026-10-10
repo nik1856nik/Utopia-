@@ -1,6 +1,6 @@
-# CivicGrid — Smart Public Works Transparency & Municipal Operations Platform
+# Utopia — Smart Public Works Transparency & Municipal Operations Platform
 
-CivicGrid is a full-stack civic transparency and municipal operations platform for Chennai. It provides an interactive **Google Maps-style** public works map, an **Amazon-style live project tracking pipeline**, construction hazard warnings (noise/dust timings), commute detour advisories intimating Google Maps, and an authenticated **Municipal Operations Portal** with the **DigSync** interdepartmental coordination engine.
+Utopia is a full-stack civic transparency and municipal operations platform for Chennai. It provides an interactive **Google Maps-style** public works map, an **Amazon-style live project tracking pipeline**, construction hazard warnings (noise/dust timings), commute detour advisories intimating Google Maps, and an authenticated **Municipal Operations Portal** with the **DigSync** interdepartmental coordination engine.
 
 ---
 
