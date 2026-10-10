@@ -56,28 +56,52 @@ def list_issues(
 @router.post('/issues')
 def create_issue(data: IssueIn, s: Session = Depends(get_db)):
     count = s.query(Issue).count()
-    ref = f'CGI-{(data.locality[:4] if data.locality else "CHEN").upper()}-{count + 1:04d}'
     
-    # Auto-resolve department if associated with a project
+    # Auto-resolve department, locality, and pincode if associated with a project
     dept = data.department
-    if data.project_id and not dept:
+    locality = data.locality or 'Chennai'
+    pincode = data.pincode
+    
+    if data.project_id:
         proj = s.get(Project, data.project_id)
         if proj:
-            dept = proj.department
+            if not dept:
+                dept = proj.department
+            if not pincode:
+                pincode = proj.pincode
+            if not locality or locality == 'Chennai':
+                locality = proj.locality
+
+    if not dept:
+        k = f"{data.kind or ''} {data.message or ''}".lower()
+        if "water" in k or "pipe" in k or "sewage" in k or "meter" in k:
+            dept = "Chennai Metro Water"
+        elif "power" in k or "electric" in k or "cable" in k or "wire" in k or "tangedco" in k or "transformer" in k:
+            dept = "TANGEDCO"
+        elif "stormwater" in k or "flood" in k or "swd" in k or "drain" in k or "culvert" in k:
+            dept = "Stormwater Drainage"
+        elif "road" in k or "pothole" in k or "asphalt" in k or "tar" in k or "walkway" in k or "pavement" in k:
+            dept = "GCC Roads & Bridges"
+        else:
+            dept = "Greater Chennai Corporation"
+
+    prefix = "Q" if data.is_question else "CGI"
+    ref = f'{prefix}-{(locality[:4] if locality else "CHEN").upper()}-{count + 1:04d}'
 
     issue = Issue(
         ref=ref,
         project_id=data.project_id,
         kind=data.kind,
-        department=dept or "Greater Chennai Corporation",
+        department=dept,
         message=data.message,
         phone=data.phone,
         email=data.email,
         severity=data.severity or 'Normal',
-        locality=data.locality,
-        pincode=data.pincode,
+        locality=locality,
+        pincode=pincode,
         status='Submitted',
-        is_question=False
+        is_question=bool(data.is_question),
+        intimated_in_advance=bool(data.intimated_in_advance)
     )
     s.add(issue)
     s.commit()
@@ -85,7 +109,8 @@ def create_issue(data: IssueIn, s: Session = Depends(get_db)):
     return {
         'id': issue.id,
         'ref': issue.ref,
-        'message': f'Issue registered successfully under reference {ref}.'
+        'department': issue.department,
+        'message': f'{"Question" if issue.is_question else "Issue"} registered and routed to {issue.department}. Reference: {ref}'
     }
 
 @router.post('/ask-question')

@@ -7,28 +7,28 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 @router.post('/login', response_model=TokenResponse)
 def login(req: LoginRequest):
-    email = req.email or (f"{req.employee_id.lower()}@gcc.gov.in" if req.employee_id else None)
+    clean_id = (req.employee_id or req.email or "").strip().lower()
     
-    # Try finding user by email or employee ID
+    # Try finding user by email, badge_id, or alias
     user_info = None
     target_email = None
-    if email and email in MUNICIPAL_USERS:
-        user_info = MUNICIPAL_USERS[email]
-        target_email = email
-    else:
-        # Search by badge_id
-        for em, u in MUNICIPAL_USERS.items():
-            if req.employee_id and u.get("badge_id", "").lower() == req.employee_id.lower():
-                user_info = u
-                target_email = em
-                break
+    
+    for em, u in MUNICIPAL_USERS.items():
+        aliases = [a.lower() for a in u.get("aliases", [])]
+        aliases.extend([em.lower(), u.get("badge_id", "").lower()])
+        if clean_id in aliases:
+            user_info = u
+            target_email = em
+            break
 
     if not user_info or user_info["password"] != req.password:
         raise HTTPException(status_code=401, detail="Invalid official credentials or password.")
 
     # Department validation if specified
-    if req.department and req.department != "Greater Chennai Corporation (Admin)" and req.department not in user_info["department"]:
-        if user_info["role"] != "admin":
+    if req.department and req.department != "Greater Chennai Corporation (Admin)":
+        req_dept_clean = req.department.lower().replace("&", "and").strip()
+        user_dept_clean = user_info["department"].lower().replace("&", "and").strip()
+        if user_info["role"] != "admin" and (req_dept_clean not in user_dept_clean and user_dept_clean not in req_dept_clean):
             raise HTTPException(status_code=403, detail=f"Access denied: You belong to {user_info['department']}")
 
     token_data = {

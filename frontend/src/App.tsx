@@ -500,20 +500,22 @@ export default function App() {
   // Fetch community questions for active area
   const { data: communityQuestions = [] } = useQuery({
     queryKey: ['issues', activePincode],
-    queryFn: () => fetchApi<any[]>(`/issues?pincode=${activePincode}`).catch(() => []),
-    enabled: !!activePincode
+    queryFn: () => {
+      const url = activePincode ? `/issues?pincode=${activePincode}` : '/issues';
+      return fetchApi<any[]>(url).catch(() => []);
+    }
   });
 
   const { data: allAdminIssues = [] } = useQuery({
     queryKey: ['admin_issues'],
     queryFn: () => fetchApi<any[]>('/issues').catch(() => []),
-    enabled: !!authToken && (loc.pathname === '/admin' || loc.pathname.startsWith('/municipality') || loc.pathname.startsWith('/department') || loc.pathname === '/municipal')
+    enabled: !!authToken
   });
 
   const { data: digsyncList = [] } = useQuery({
     queryKey: ['digsync'],
     queryFn: () => fetchApi<any[]>('/digsync').catch(() => []),
-    enabled: !!authToken && (loc.pathname === '/admin' || loc.pathname.startsWith('/municipality') || loc.pathname.startsWith('/department') || loc.pathname === '/municipal')
+    enabled: !!authToken
   });
 
   // Filter projects by category, road closure, etc.
@@ -1482,25 +1484,31 @@ export default function App() {
                       const questionText = input.value.trim();
                       if (questionText.length >= 6) {
                         try {
-                          await fetchApi<any>('/issues', {
+                          const res = await fetchApi<any>('/issues', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                               project_id: selectedProject.id,
-                              pincode: activePincode,
+                              department: selectedProject.department || 'Greater Chennai Corporation',
+                              pincode: selectedProject.pincode || activePincode,
                               kind: 'Citizen Question',
                               message: questionText,
-                              locality: activeAreaName,
+                              locality: selectedProject.locality || activeAreaName,
                               severity: 'Normal',
                               is_question: true
                             })
                           });
-                          setToastMessage('Question published! It is now visible to all residents in this area.');
+                          setToastMessage(`Question published! Routed to ${res.department || selectedProject.department} & visible to all residents.`);
                           input.value = '';
+                          qc.invalidateQueries({ queryKey: ['issues'] });
                           qc.invalidateQueries({ queryKey: ['issues', activePincode] });
+                          qc.invalidateQueries({ queryKey: ['admin_issues'] });
                         } catch {
                           setToastMessage('Question recorded for municipal engineering review.');
                           input.value = '';
+                          qc.invalidateQueries({ queryKey: ['issues'] });
+                          qc.invalidateQueries({ queryKey: ['issues', activePincode] });
+                          qc.invalidateQueries({ queryKey: ['admin_issues'] });
                         }
                       }
                     }}
@@ -2817,14 +2825,23 @@ function MunicipalityLoginPage({ onLogin }: { onLogin: (token: string, user: Aut
           designation: 'Divisional Engineer (Zone 10)',
           badge_id: 'GCC-RD-0155'
         });
-      } else if (cleanId === 'TNEB-ZN-3310') {
+      } else if (cleanId === 'TNEB-ZN-3310' || cleanId === 'TNEB-AEE-4091') {
         onLogin('mock-jwt', {
           email: 'power@tangedco.gov.in',
           name: 'Er. Anitha Selvan',
           role: 'official',
           department: 'TANGEDCO',
-          designation: 'Assistant Executive Engineer (Cables)',
+          designation: 'Assistant Executive Engineer (O&M)',
           badge_id: 'TNEB-ZN-3310'
+        });
+      } else if (cleanId === 'SWD-ZN-0418' || cleanId === 'SWD-ENG-1102') {
+        onLogin('mock-jwt', {
+          email: 'drainage@gcc.gov.in',
+          name: 'Er. M. Gunasekaran',
+          role: 'official',
+          department: 'Stormwater Drainage',
+          designation: 'Executive Engineer (SWD)',
+          badge_id: 'SWD-ZN-0418'
         });
       } else {
         setError('Invalid Employee ID or password. Please verify credentials or select a demo account.');
@@ -3015,6 +3032,52 @@ function DepartmentLoginPage({ onLogin }: { onLogin: (token: string, user: AuthU
       }
       onLogin(res.access_token, res.user);
     } catch (err: any) {
+      const cleanId = employeeId.trim().toUpperCase();
+      if ((cleanId === 'TNEB-ZN-3310' || cleanId === 'TNEB-AEE-4091' || cleanId === 'POWER@TANGEDCO.GOV.IN') && password === 'power123') {
+        onLogin('mock-jwt-tneb', {
+          email: 'power@tangedco.gov.in',
+          name: 'Er. Anitha Selvan',
+          role: 'official',
+          department: 'TANGEDCO',
+          designation: 'Assistant Executive Engineer (O&M)',
+          badge_id: 'TNEB-ZN-3310'
+        });
+        return;
+      }
+      if ((cleanId === 'SWD-ZN-0418' || cleanId === 'SWD-ENG-1102' || cleanId === 'DRAINAGE@GCC.GOV.IN') && password === 'drain123') {
+        onLogin('mock-jwt-swd', {
+          email: 'drainage@gcc.gov.in',
+          name: 'Er. M. Gunasekaran',
+          role: 'official',
+          department: 'Stormwater Drainage',
+          designation: 'Executive Engineer (SWD)',
+          badge_id: 'SWD-ZN-0418'
+        });
+        return;
+      }
+      if ((cleanId === 'CMW-DIV-0219' || cleanId === 'WATER@METROWATER.TN.GOV.IN') && password === 'water123') {
+        onLogin('mock-jwt-cmw', {
+          email: 'water@metrowater.tn.gov.in',
+          name: 'Dr. V. Meenakshi',
+          role: 'official',
+          department: 'Chennai Metro Water',
+          designation: 'Executive Engineer (Pipelines)',
+          badge_id: 'CMW-DIV-0219'
+        });
+        return;
+      }
+      if ((cleanId === 'GCC-RD-0155' || cleanId === 'ROADS@GCC.GOV.IN') && password === 'roads123') {
+        onLogin('mock-jwt-rd', {
+          email: 'roads@gcc.gov.in',
+          name: 'Er. K. Ramanathan',
+          role: 'official',
+          department: 'GCC Roads & Bridges',
+          designation: 'Divisional Engineer (Zone 10)',
+          badge_id: 'GCC-RD-0155'
+        });
+        return;
+      }
+
       let msg = err.message || 'Login failed';
       try {
         const parsed = JSON.parse(msg);
@@ -5709,9 +5772,15 @@ function DepartmentDashboard({
   // Filter department issues (routed to this department via project or explicit department)
   const deptIssues = useMemo(() => {
     return issues.filter(iss => {
-      const issDept = (iss.department || '').toLowerCase();
-      const aDept = activeDept.toLowerCase();
-      return issDept.includes(aDept) || aDept.includes(issDept);
+      const issDept = (iss.department || '').toLowerCase().trim();
+      const aDept = activeDept.toLowerCase().trim();
+      if (!issDept) return false;
+      if (issDept === aDept || issDept.includes(aDept) || aDept.includes(issDept)) return true;
+      if (aDept.includes('water') && issDept.includes('water')) return true;
+      if ((aDept.includes('tangedco') || aDept.includes('power') || aDept.includes('electr')) && (issDept.includes('tangedco') || issDept.includes('power') || issDept.includes('electr'))) return true;
+      if ((aDept.includes('drain') || aDept.includes('stormwater') || aDept.includes('swd')) && (issDept.includes('drain') || issDept.includes('stormwater') || issDept.includes('swd'))) return true;
+      if ((aDept.includes('road') || aDept.includes('bridge')) && (issDept.includes('road') || issDept.includes('bridge'))) return true;
+      return false;
     });
   }, [issues, activeDept]);
 
@@ -7780,7 +7849,9 @@ function CitizenIssueModal({
   onClose: () => void;
   onSuccess: (ref: string) => void;
 }) {
+  const qc = useQueryClient();
   const [kind, setKind] = useState('Excessive noise');
+  const [department, setDepartment] = useState(project?.department || 'Greater Chennai Corporation');
   const [message, setMessage] = useState('');
   const [locality, setLocality] = useState(localityName || project?.locality || 'Triplicane');
   const [severity, setSeverity] = useState('Normal');
@@ -7801,6 +7872,7 @@ function CitizenIssueModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project_id: project?.id || null,
+          department: department || project?.department || 'Greater Chennai Corporation',
           pincode: pincode || project?.pincode,
           kind,
           message: message.trim(),
@@ -7810,8 +7882,14 @@ function CitizenIssueModal({
           intimated_in_advance: intimated
         })
       });
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      qc.invalidateQueries({ queryKey: ['issues', pincode] });
+      qc.invalidateQueries({ queryKey: ['admin_issues'] });
       onSuccess(res.ref || 'CGI-261010-0088');
     } catch {
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      qc.invalidateQueries({ queryKey: ['issues', pincode] });
+      qc.invalidateQueries({ queryKey: ['admin_issues'] });
       onSuccess(`CGI-261010-${Math.floor(1000 + Math.random() * 9000)}`);
     } finally {
       setLoading(false);
@@ -7835,6 +7913,17 @@ function CitizenIssueModal({
             )}
 
             <div className="form-group">
+              <label>Target Department / Agency *</label>
+              <select value={department} onChange={e => setDepartment(e.target.value)} required>
+                <option value="Greater Chennai Corporation">Greater Chennai Corporation (GCC)</option>
+                <option value="Chennai Metro Water">Chennai Metro Water (CMWSSB)</option>
+                <option value="TANGEDCO">TANGEDCO Power & Electricity</option>
+                <option value="Stormwater Drainage">Stormwater Drainage Department</option>
+                <option value="GCC Roads & Bridges">GCC Roads & Bridges</option>
+              </select>
+            </div>
+
+            <div className="form-group">
               <label>Grievance / Query Type</label>
               <select value={kind} onChange={e => setKind(e.target.value)}>
                 <option value="Excessive noise">Excessive Noise (Violating Permitted Hours)</option>
@@ -7843,6 +7932,7 @@ function CitizenIssueModal({
                 <option value="Missing barricades">Missing Barricades / Open Trench Hazard</option>
                 <option value="Road access blocked">Complete Road Access Blockage</option>
                 <option value="Water supply disruption">Water Supply Interruption</option>
+                <option value="Power outage">Power Interruption / Cable Excavation</option>
                 <option value="Other">Other Construction Grievance</option>
               </select>
             </div>
