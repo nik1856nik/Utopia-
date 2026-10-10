@@ -6531,3 +6531,182 @@ a {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+
+/* ============================================================
+   PROJECT OPERATIONS MODAL & LIVE MILESTONE TRACKER
+   ============================================================ */
+.modal-progress-live-preview {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.live-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.live-preview-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: -0.2px;
+}
+
+.live-progress-pct-badge {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f766e;
+  background: #ccfbf1;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.modal-live-progress-bar-wrap {
+  width: 100%;
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.modal-live-progress-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
+}
+
+.modal-steps-mini-track {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.modal-step-mini-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 2px;
+  background: #ffffff;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-step-mini-node:hover {
+  border-color: #0f766e;
+  transform: translateY(-1px);
+}
+
+.modal-step-mini-node.done {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.modal-step-mini-node.current {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(15,118,110,0.3);
+}
+
+.modal-step-mini-node .mini-node-num {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.modal-step-mini-node .mini-node-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.modal-custom-select, .modal-custom-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1.5px solid #cbd5e1;
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+  background: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modal-custom-select:focus, .modal-custom-input:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15,118,110,0.12);
+}
+
+.step-desc-hint {
+  font-size: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border-left: 3px solid #0f766e;
+}
+
+/* ============================================================
+   MUNICIPAL REPLY MODAL STYLES
+   ============================================================ */
+.reply-modal-citizen-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reply-modal-citizen-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reply-modal-message-text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1e293b;
+  font-style: italic;
+  margin: 0;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #0d9488;
+}
+
+.reply-modal-meta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.reply-modal-escalation-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #991b1b;
+  font-size: 12.5px;
+}
+

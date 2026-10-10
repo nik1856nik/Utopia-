@@ -145,6 +145,30 @@ const MILESTONE_STEPS = [
   { step: 7, title: 'Commissioned & Reopened', desc: 'Final site audit cleared & road open to traffic' }
 ];
 
+export const MILESTONE_STEP_PROGRESS: Record<number, number> = {
+  1: 10,
+  2: 25,
+  3: 45,
+  4: 65,
+  5: 80,
+  6: 92,
+  7: 100
+};
+
+export const getProgressForMilestoneStep = (step: number): number => {
+  return MILESTONE_STEP_PROGRESS[step] ?? 10;
+};
+
+export const getMilestoneStepForProgress = (progress: number): number => {
+  if (progress >= 100) return 7;
+  if (progress >= 90) return 6;
+  if (progress >= 75) return 5;
+  if (progress >= 55) return 4;
+  if (progress >= 35) return 3;
+  if (progress >= 20) return 2;
+  return 1;
+};
+
 // Area coordinates lookup for rapid map centering
 const PIN_COORDINATES: Record<string, { center: [number, number]; zoom: number; name: string }> = {
   '600005': { center: [13.0585, 80.2751], zoom: 15, name: 'Triplicane' },
@@ -4487,7 +4511,11 @@ function OnsiteDashboard({
                       min={0}
                       max={100}
                       value={progressPct}
-                      onChange={e => setProgressPct(Number(e.target.value))}
+                      onChange={e => {
+                        const p = Number(e.target.value);
+                        setProgressPct(p);
+                        setMilestoneStep(getMilestoneStepForProgress(p));
+                      }}
                     />
                     <span className="onsite-slider-val">{progressPct}%</span>
                   </div>
@@ -4498,7 +4526,11 @@ function OnsiteDashboard({
                   <select
                     className="onsite-select-input"
                     value={milestoneStep}
-                    onChange={e => setMilestoneStep(Number(e.target.value))}
+                    onChange={e => {
+                      const s = Number(e.target.value);
+                      setMilestoneStep(s);
+                      setProgressPct(getProgressForMilestoneStep(s));
+                    }}
                   >
                     {MILESTONE_NAMES.map((m, idx) => (
                       <option key={idx} value={idx + 1}>{m}</option>
@@ -5180,6 +5212,442 @@ function DeptConflictCoordinationTab({ activeDept, digsync, deptConflicts, onToa
 }
 
 // ============================================================
+// 4a. REUSABLE PROJECT OPERATIONS & STAGE UPDATE MODAL
+// ============================================================
+function ProjectOperationsModal({
+  project,
+  onClose,
+  onSave,
+  isPending
+}: {
+  project: Project | null;
+  onClose: () => void;
+  onSave: (id: number, data: any) => void;
+  isPending?: boolean;
+}) {
+  if (!project) return null;
+
+  const [step, setStep] = useState<number>(project.current_step || (project.status === 'Completed' ? 7 : 3));
+  const [progress, setProgress] = useState<number>(project.progress ?? 45);
+  const [status, setStatus] = useState<string>(project.status || 'In progress');
+  const [delayReason, setDelayReason] = useState<string>(project.delay_reason || '');
+  const [noiseWarning, setNoiseWarning] = useState<string>(project.noise_warning || 'Permitted high-noise window: 22:00 - 04:00');
+  const [dustWarning, setDustWarning] = useState<string>(project.dust_warning || 'Trenching dust window: 09:00 - 14:00');
+  const [gmapsBroadcast, setGmapsBroadcast] = useState<boolean>(project.gmaps_broadcast ?? true);
+
+  // Auto-update percentage when stage dropdown changes
+  const handleStepChange = (newStep: number) => {
+    setStep(newStep);
+    const autoProgress = getProgressForMilestoneStep(newStep);
+    setProgress(autoProgress);
+    if (newStep === 7) {
+      setStatus('Completed');
+    } else if (status === 'Completed') {
+      setStatus('In progress');
+    }
+  };
+
+  // Auto-update milestone step when progress input/slider changes
+  const handleProgressChange = (newProgress: number) => {
+    const clamped = Math.max(0, Math.min(100, newProgress));
+    setProgress(clamped);
+    const autoStep = getMilestoneStepForProgress(clamped);
+    setStep(autoStep);
+    if (clamped === 100) {
+      setStatus('Completed');
+    } else if (status === 'Completed' && clamped < 100) {
+      setStatus('In progress');
+    }
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    setStatus(newStatus);
+    if (newStatus === 'Completed') {
+      setStep(7);
+      setProgress(100);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(project.id, {
+      current_step: step,
+      progress,
+      status,
+      delay_reason: status === 'Delayed' ? delayReason : (delayReason || null),
+      noise_warning: noiseWarning,
+      dust_warning: dustWarning,
+      gmaps_broadcast: gmapsBroadcast
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-window project-operations-modal" style={{ maxWidth: '620px' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-window-head">
+          <div>
+            <span className="table-code-badge">{project.code}</span>
+            <h3 style={{ margin: '4px 0 0', fontSize: '17px', color: 'var(--navy)' }}>
+              Update Project Operations & Stage
+            </h3>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-window-body">
+            {/* Live Visual Progress & Milestone Preview */}
+            <div className="modal-progress-live-preview">
+              <div className="live-preview-head">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="live-preview-title">Live Milestone Tracker</span>
+                  <span className={`place-status-chip ${status === 'Completed' ? 'completed' : status === 'Delayed' ? 'delayed' : 'in-progress'}`}>
+                    {status}
+                  </span>
+                </div>
+                <div className="live-progress-pct-badge">{progress}% Complete</div>
+              </div>
+
+              {/* Animated Progress Bar */}
+              <div className="modal-live-progress-bar-wrap">
+                <div
+                  className="modal-live-progress-bar-fill"
+                  style={{
+                    width: `${progress}%`,
+                    background: status === 'Delayed'
+                      ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                      : progress === 100
+                        ? 'linear-gradient(90deg, #10b981, #059669)'
+                        : 'linear-gradient(90deg, #0f766e, #06b6d4)'
+                  }}
+                />
+              </div>
+
+              {/* 7-Step Mini Indicator */}
+              <div className="modal-steps-mini-track">
+                {MILESTONE_STEPS.map(s => {
+                  const isDone = s.step < step || (s.step === 7 && progress === 100);
+                  const isCurrent = s.step === step;
+                  return (
+                    <div
+                      key={s.step}
+                      className={`modal-step-mini-node ${isDone ? 'done' : ''} ${isCurrent ? 'current' : ''}`}
+                      onClick={() => handleStepChange(s.step)}
+                      title={`Stage ${s.step}: ${s.title} (${MILESTONE_STEP_PROGRESS[s.step]}%)`}
+                    >
+                      <span className="mini-node-num">{isDone ? '✓' : s.step}</span>
+                      <span className="mini-node-label">Stage {s.step}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Stage Dropdown (Auto-updates progress percentage) */}
+            <div className="form-group">
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, color: 'var(--navy)' }}>Amazon Tracker Milestone Stage</span>
+                <span style={{ fontSize: '11.5px', color: '#0f766e', fontWeight: 600 }}>⚡ Auto-syncs Progress %</span>
+              </label>
+              <select
+                className="modal-custom-select"
+                value={step}
+                onChange={e => handleStepChange(Number(e.target.value))}
+              >
+                {MILESTONE_STEPS.map(s => (
+                  <option key={s.step} value={s.step}>
+                    Stage {s.step}: {s.title} ({MILESTONE_STEP_PROGRESS[s.step]}% Target)
+                  </option>
+                ))}
+              </select>
+              <div className="step-desc-hint">
+                <strong>Stage Description:</strong> {MILESTONE_STEPS[step - 1]?.desc}
+              </div>
+            </div>
+
+            {/* Progress Percentage (Slider + Number) */}
+            <div className="form-group">
+              <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, color: 'var(--navy)' }}>Verified Progress Percentage</span>
+                <strong style={{ fontSize: '14px', color: '#0f766e' }}>{progress}%</strong>
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={progress}
+                  onChange={e => handleProgressChange(Number(e.target.value))}
+                  style={{ flexGrow: 1, accentColor: '#0f766e', cursor: 'pointer' }}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={progress}
+                  onChange={e => handleProgressChange(Number(e.target.value))}
+                  style={{ width: '70px', padding: '6px 8px', borderRadius: '8px', border: '1px solid #cbd5e1', textAlign: 'center', fontWeight: 700 }}
+                />
+              </div>
+            </div>
+
+            {/* Work Status */}
+            <div className="form-group">
+              <label style={{ fontWeight: 700, color: 'var(--navy)' }}>Work Status</label>
+              <select
+                className="modal-custom-select"
+                value={status}
+                onChange={e => handleStatusChange(e.target.value)}
+              >
+                <option value="In progress">In progress (Active Civil Works)</option>
+                <option value="Delayed">Delayed (Behind Schedule)</option>
+                <option value="Upcoming">Upcoming (Permit Approved)</option>
+                <option value="Scheduled">Scheduled (Awaiting Mobilisation)</option>
+                <option value="Completed">Completed (100% Commissioned)</option>
+              </select>
+            </div>
+
+            {/* Delay Reason (if delayed) */}
+            {status === 'Delayed' && (
+              <div className="form-group" style={{ animation: 'fade-in 0.2s ease' }}>
+                <label style={{ fontWeight: 700, color: '#dc2626' }}>Official Delay Reason & Explanation</label>
+                <input
+                  type="text"
+                  className="modal-custom-input"
+                  value={delayReason}
+                  onChange={e => setDelayReason(e.target.value)}
+                  placeholder="e.g. Unmapped underground high-voltage cables encountered; manual trenching underway"
+                  required
+                />
+              </div>
+            )}
+
+            {/* Environmental & Hazard Warning Windows */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="form-group">
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Noise Warning Window</label>
+                <input
+                  type="text"
+                  className="modal-custom-input"
+                  value={noiseWarning}
+                  onChange={e => setNoiseWarning(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Dust Warning Window</label>
+                <input
+                  type="text"
+                  className="modal-custom-input"
+                  value={dustWarning}
+                  onChange={e => setDustWarning(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Google Maps Detour Broadcast Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <input
+                type="checkbox"
+                id="modal_gmaps_broadcast"
+                checked={gmapsBroadcast}
+                onChange={e => setGmapsBroadcast(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: '#0f766e', cursor: 'pointer' }}
+              />
+              <label htmlFor="modal_gmaps_broadcast" style={{ fontSize: '12.5px', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                Broadcast Live Road Closures & Commute Detours to Google Maps Navigation Feed
+              </label>
+            </div>
+          </div>
+
+          <div className="modal-window-footer">
+            <button type="button" className="table-action-btn" style={{ background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' }} onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="table-action-btn" style={{ background: '#0f766e', color: '#ffffff', borderColor: '#0d9488' }} disabled={isPending}>
+              {isPending ? 'Saving Updates…' : 'Save Operational Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 4a-2. MUNICIPAL CITIZEN REPLY & INTERVENTION MODAL
+// ============================================================
+function MunicipalReplyModal({
+  issue,
+  onClose,
+  onSubmit,
+  isPending,
+  officialUser
+}: {
+  issue: any | null;
+  onClose: () => void;
+  onSubmit: (id: number, reply: string, status: string) => void;
+  isPending?: boolean;
+  officialUser?: AuthUser;
+}) {
+  if (!issue) return null;
+
+  const [replyText, setReplyText] = useState('');
+  const [status, setStatus] = useState<'Answered' | 'Resolved'>('Answered');
+
+  const templates = [
+    'Municipal Executive inspection conducted; emergency contractor deployed for immediate resolution.',
+    'Excavation backfilling ordered on priority. Road surface restoration will complete tonight.',
+    'Alternative utility diversion commissioned to prevent service disruption to neighborhood.',
+    'Site engineer issued compliance notice. Dust suppression & acoustic barriers reinforced.'
+  ];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim()) {
+      alert('Please enter your official response message.');
+      return;
+    }
+    onSubmit(issue.id, replyText.trim(), status);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-window municipal-reply-modal" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-window-head">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span className="grievance-ref">{issue.ref}</span>
+            <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--navy)' }}>
+              Municipal Citizen Response & Intervention
+            </h3>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-window-body">
+            {/* Citizen Submission Context Card */}
+            <div className="reply-modal-citizen-card">
+              <div className="reply-modal-citizen-head">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <MessageSquare size={15} color="#0f766e" />
+                  <strong style={{ fontSize: '13.5px', color: '#0f2438' }}>{issue.kind}</strong>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  {issue.pincode && <span className="pincode-change-tag">PIN {issue.pincode}</span>}
+                  <span className={`place-status-chip ${issue.status === 'Resolved' || issue.status === 'Answered' ? 'completed' : 'in-progress'}`}>
+                    {issue.status}
+                  </span>
+                </div>
+              </div>
+
+              <p className="reply-modal-message-text">"{issue.message}"</p>
+
+              <div className="reply-modal-meta-row">
+                <span>Locality: <strong>{issue.locality}</strong></span>
+                {issue.department && <span>Department: <strong>{issue.department}</strong></span>}
+                {issue.project_title && <span>Project: <strong>{issue.project_title}</strong></span>}
+              </div>
+            </div>
+
+            {/* SLA Escalation Warning Banner */}
+            {issue.is_escalated && (
+              <div className="reply-modal-escalation-alert">
+                <AlertTriangle size={18} color="#b91c1c" />
+                <div>
+                  <strong>Mandatory SLA Escalation Intervention:</strong>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px' }}>
+                    This inquiry has been pending for <strong>{issue.days_elapsed} days</strong> without departmental response. Publishing this response will clear the escalation on the public grid.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Response Templates */}
+            <div>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                ⚡ Quick Official Response Presets:
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {templates.map((tmpl, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    className="quick-template-btn"
+                    onClick={() => setReplyText(tmpl)}
+                  >
+                    💡 {tmpl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Official Response Input */}
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontWeight: 700, color: 'var(--navy)' }}>Official Municipal Reply Message</label>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>{replyText.length} characters</span>
+              </div>
+              <textarea
+                rows={4}
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                placeholder="Enter official resolution details, engineering schedules, or site mitigation actions..."
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '13.5px',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  lineHeight: '1.5'
+                }}
+                required
+              />
+            </div>
+
+            {/* Status Update & Signatory Info */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#334155' }}>Resolution Status:</span>
+                <select
+                  value={status}
+                  onChange={e => setStatus(e.target.value as any)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    background: '#ffffff'
+                  }}
+                >
+                  <option value="Answered">Answered (Public Notice)</option>
+                  <option value="Resolved">Resolved & Closed</option>
+                </select>
+              </div>
+
+              <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                Dispatched by: <strong style={{ color: '#0f766e' }}>{officialUser?.name || 'Municipal Engineer'}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-window-footer">
+            <button type="button" className="table-action-btn" style={{ background: '#f1f5f9', color: '#475569', borderColor: '#cbd5e1' }} onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="table-action-btn" style={{ background: '#0f766e', color: '#ffffff', borderColor: '#0d9488' }} disabled={isPending}>
+              <Send size={13} /> {isPending ? 'Publishing Response…' : 'Publish to Public Feed'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // 4b. DEPARTMENT DASHBOARD (/department/dashboard)
 // ============================================================
 function DepartmentDashboard({
@@ -5205,7 +5673,29 @@ function DepartmentDashboard({
   const [replyText, setReplyText] = useState('');
   const [replyStatus, setReplyStatus] = useState<'Answered' | 'Resolved'>('Answered');
   const [selectedProjectModal, setSelectedProjectModal] = useState<Project | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectSearch, setProjectSearch] = useState('');
+
+  const updateProjectMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      return fetchApi<any>(`/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    },
+    onSuccess: () => {
+      setEditingProject(null);
+      if (selectedProjectModal) {
+        const updated = projects.find(p => p.id === selectedProjectModal.id);
+        if (updated) setSelectedProjectModal(updated);
+      }
+      onToast('Project operational stage and progress percentage updated successfully!');
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      qc.invalidateQueries({ queryKey: ['department_projects'] });
+      qc.invalidateQueries({ queryKey: ['stats'] });
+    }
+  });
 
   // Filter department projects
   const deptProjects = useMemo(() => {
@@ -5802,12 +6292,23 @@ function DepartmentDashboard({
                     <td style={{ fontSize: '12.5px', color: '#334155' }}>{p.contractor}</td>
                     <td style={{ fontSize: '12.5px', color: '#475569', whiteSpace: 'nowrap' }}>{p.due_date}</td>
                     <td>
-                      <button
-                        className="table-action-btn"
-                        onClick={() => setSelectedProjectModal(p)}
-                      >
-                        <Eye size={13} /> View
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          className="table-action-btn"
+                          onClick={() => setSelectedProjectModal(p)}
+                          title="View complete project details"
+                        >
+                          <Eye size={13} /> View
+                        </button>
+                        <button
+                          className="table-action-btn"
+                          style={{ background: '#0f766e', color: '#ffffff', borderColor: '#0d9488' }}
+                          onClick={() => setEditingProject(p)}
+                          title="Update project stage and progress percentage"
+                        >
+                          <SlidersHorizontal size={13} /> Update Stage
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -5851,13 +6352,34 @@ function DepartmentDashboard({
                 </div>
               )}
             </div>
-            <div className="modal-window-footer">
+            <div className="modal-window-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                className="table-action-btn"
+                style={{ background: '#0f766e', color: '#ffffff', borderColor: '#0d9488' }}
+                onClick={() => {
+                  const p = selectedProjectModal;
+                  setSelectedProjectModal(null);
+                  setEditingProject(p);
+                }}
+              >
+                <SlidersHorizontal size={13} /> Update Operations & Stage
+              </button>
               <button className="table-action-btn" onClick={() => setSelectedProjectModal(null)}>
                 Close
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Reusable Project Operations & Stage Auto-Sync Modal */}
+      {editingProject && (
+        <ProjectOperationsModal
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+          onSave={(id, data) => updateProjectMutation.mutate({ id, data })}
+          isPending={updateProjectMutation.isPending}
+        />
       )}
 
       {/* TAB 4: SANCTION NEW INFRASTRUCTURE PROJECT */}
@@ -6331,6 +6853,9 @@ function MunicipalDashboard({
   }, [projects, selectedStatusFilter, selectedDeptFilter, statusSearchQuery, inProgressProjects, completedProjects, delayedProjects, scheduledProjects]);
 
   const [grievanceDeptFilter, setGrievanceDeptFilter] = useState('All');
+  const [grievanceTypeFilter, setGrievanceTypeFilter] = useState<'All' | 'Questions' | 'Grievances' | 'Escalated' | 'Answered'>('All');
+  const [grievanceSearch, setGrievanceSearch] = useState('');
+  const [replyingIssue, setReplyingIssue] = useState<any | null>(null);
 
   const escalatedIssuesCount = useMemo(() => {
     return issues.filter(i => i.is_escalated || ((i.status !== 'Resolved' && i.status !== 'Answered') && i.days_elapsed >= 3)).length;
@@ -6339,13 +6864,34 @@ function MunicipalDashboard({
   const filteredGrievances = useMemo(() => {
     let list = issues;
     if (grievanceDeptFilter === 'Escalated') {
-      return list.filter(i => i.is_escalated || ((i.status !== 'Resolved' && i.status !== 'Answered') && i.days_elapsed >= 3));
+      list = list.filter(i => i.is_escalated || ((i.status !== 'Resolved' && i.status !== 'Answered') && i.days_elapsed >= 3));
+    } else if (grievanceDeptFilter !== 'All') {
+      list = list.filter(i => (i.department || '').toLowerCase().includes(grievanceDeptFilter.toLowerCase()));
     }
-    if (grievanceDeptFilter !== 'All') {
-      return list.filter(i => (i.department || '').toLowerCase().includes(grievanceDeptFilter.toLowerCase()));
+
+    if (grievanceTypeFilter === 'Questions') {
+      list = list.filter(i => i.is_question || (i.kind || '').toLowerCase().includes('question'));
+    } else if (grievanceTypeFilter === 'Grievances') {
+      list = list.filter(i => !i.is_question && !(i.kind || '').toLowerCase().includes('question'));
+    } else if (grievanceTypeFilter === 'Escalated') {
+      list = list.filter(i => i.is_escalated || ((i.status !== 'Resolved' && i.status !== 'Answered') && i.days_elapsed >= 3));
+    } else if (grievanceTypeFilter === 'Answered') {
+      list = list.filter(i => i.status === 'Resolved' || i.status === 'Answered');
+    }
+
+    if (grievanceSearch.trim()) {
+      const q = grievanceSearch.toLowerCase();
+      list = list.filter(i =>
+        (i.message || '').toLowerCase().includes(q) ||
+        (i.ref || '').toLowerCase().includes(q) ||
+        (i.locality || '').toLowerCase().includes(q) ||
+        (i.pincode || '').includes(q) ||
+        (i.kind || '').toLowerCase().includes(q) ||
+        (i.department || '').toLowerCase().includes(q)
+      );
     }
     return list;
-  }, [issues, grievanceDeptFilter]);
+  }, [issues, grievanceDeptFilter, grievanceTypeFilter, grievanceSearch]);
 
   const updateProjectMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
@@ -6801,27 +7347,70 @@ function MunicipalDashboard({
                 </p>
               </div>
               <button
-                className={`escalation-filter-btn ${grievanceDeptFilter === 'Escalated' ? 'active' : ''}`}
-                onClick={() => setGrievanceDeptFilter(grievanceDeptFilter === 'Escalated' ? 'All' : 'Escalated')}
+                className={`escalation-filter-btn ${grievanceTypeFilter === 'Escalated' ? 'active' : ''}`}
+                onClick={() => setGrievanceTypeFilter(grievanceTypeFilter === 'Escalated' ? 'All' : 'Escalated')}
               >
-                {grievanceDeptFilter === 'Escalated' ? 'Show All Grievances' : `Filter Escalated (${escalatedIssuesCount})`}
+                {grievanceTypeFilter === 'Escalated' ? 'Show All Grievances' : `Filter Escalated (${escalatedIssuesCount})`}
               </button>
             </div>
           )}
 
-          {/* Department & Escalation Filter Pills */}
+          {/* Search & Type Filter Controls Strip */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '16px' }}>
+            {/* Type Filter Pills */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {(['All', 'Questions', 'Grievances', 'Escalated', 'Answered'] as const).map(type => (
+                <button
+                  key={type}
+                  className={`dept-pill-btn ${grievanceTypeFilter === type ? 'active' : ''}`}
+                  onClick={() => setGrievanceTypeFilter(type)}
+                >
+                  {type === 'All' ? 'All Submissions' : type === 'Escalated' ? '⚠️ Escalated' : type === 'Questions' ? '💬 Q&A Questions' : type === 'Grievances' ? '🚨 Hazard Reports' : '✅ Answered'}
+                  <span className="dept-pill-count">
+                    {type === 'All' ? issues.length
+                      : type === 'Escalated' ? escalatedIssuesCount
+                      : type === 'Questions' ? issues.filter(i => i.is_question || (i.kind || '').toLowerCase().includes('question')).length
+                      : type === 'Grievances' ? issues.filter(i => !i.is_question && !(i.kind || '').toLowerCase().includes('question')).length
+                      : issues.filter(i => i.status === 'Resolved' || i.status === 'Answered').length}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Real-time Search Box */}
+            <div style={{ position: 'relative', width: '300px' }}>
+              <Search size={15} style={{ position: 'absolute', left: '12px', top: '10px', color: '#94a3b8' }} />
+              <input
+                type="text"
+                placeholder="Search citizen messages, PIN, locality..."
+                value={grievanceSearch}
+                onChange={e => setGrievanceSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px 8px 34px',
+                  borderRadius: '10px',
+                  border: '1.5px solid var(--gray-200)',
+                  fontSize: '13px',
+                  outline: 'none',
+                  background: '#ffffff'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Department Filter Pills */}
           <div className="dept-filter-pills-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
-            {['All', 'Escalated', 'Chennai Metro Water', 'GCC Roads & Bridges', 'TANGEDCO', 'Greater Chennai Corporation'].map(dept => {
+            {['All', 'Chennai Metro Water', 'GCC Roads & Bridges', 'TANGEDCO', 'Greater Chennai Corporation'].map(dept => {
               const count = dept === 'All' ? issues.length
-                : dept === 'Escalated' ? escalatedIssuesCount
                 : issues.filter(i => (i.department || '').toLowerCase().includes(dept.toLowerCase())).length;
               return (
                 <button
                   key={dept}
                   className={`dept-pill-btn ${grievanceDeptFilter === dept ? 'active' : ''}`}
                   onClick={() => setGrievanceDeptFilter(dept)}
+                  style={{ fontSize: '12px', padding: '5px 12px' }}
                 >
-                  {dept === 'Escalated' ? '⚠️ Overdue Escalations' : dept}
+                  {dept}
                   <span className="dept-pill-count">{count}</span>
                 </button>
               );
@@ -6832,14 +7421,14 @@ function MunicipalDashboard({
             {filteredGrievances.map((iss: any) => (
               <div className={`grievance-card ${iss.is_escalated ? 'card-escalated' : ''}`} key={iss.id}>
                 <div className="grievance-header">
-                  <div>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                     <span className="grievance-ref">{iss.ref}</span>
-                    <strong style={{ marginLeft: '10px', fontSize: '14px', color: '#0f2438' }}>{iss.kind}</strong>
+                    <strong style={{ fontSize: '14.5px', color: '#0f2438' }}>{iss.kind}</strong>
                     {iss.pincode && (
-                      <span className="pincode-change-tag" style={{ marginLeft: '8px' }}>PIN {iss.pincode}</span>
+                      <span className="pincode-change-tag">PIN {iss.pincode}</span>
                     )}
                     {iss.department && (
-                      <span className="dept-badge-tag" style={{ marginLeft: '8px', fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                      <span className="dept-badge-tag" style={{ fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
                         {iss.department}
                       </span>
                     )}
@@ -6857,38 +7446,36 @@ function MunicipalDashboard({
                 </div>
 
                 <div className="grievance-content">
-                  <p>{iss.message}</p>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                    Locality: <strong>{iss.locality}</strong> · Received: {formatDate(iss.created)}
+                  <p style={{ fontSize: '13.5px', lineHeight: 1.55 }}>"{iss.message}"</p>
+                  <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px' }}>
+                    Locality: <strong>{iss.locality}</strong> · Logged: {formatDate(iss.created)}
+                    {iss.phone && <span> · Phone: <strong style={{ color: '#334155' }}>{iss.phone}</strong></span>}
                     {iss.project_title && (
-                      <span> · Project: <strong>{iss.project_title}</strong></span>
+                      <span> · Project: <strong style={{ color: '#0f766e' }}>{iss.project_title}</strong></span>
                     )}
                   </div>
                 </div>
 
                 {iss.official_reply ? (
-                  <div className="qa-reply" style={{ margin: '8px 0' }}>
-                    <strong>Official Response Dispatched (Visible to Residents):</strong> {iss.official_reply}
-                    <small>By: {iss.replied_by || 'Municipal Engineer'} on {formatDate(iss.replied_at)}</small>
+                  <div className="qa-reply" style={{ margin: '8px 0', borderLeftColor: '#10b981', background: '#f0fdf4' }}>
+                    <strong style={{ color: '#166534' }}>Official Municipal Response Published:</strong> {iss.official_reply}
+                    <small style={{ color: '#15803d' }}>By: {iss.replied_by || 'Municipal Executive Engineer'} on {formatDate(iss.replied_at)}</small>
                   </div>
                 ) : (
                   <div className="grievance-footer">
-                    <span style={{ fontSize: '11px', color: iss.is_escalated ? '#b91c1c' : '#ea580c', fontWeight: 600 }}>
+                    <span style={{ fontSize: '11.5px', color: iss.is_escalated ? '#b91c1c' : '#ea580c', fontWeight: 700 }}>
                       {iss.is_escalated
-                        ? '⚠️ Response deadline (>3 days) exceeded. Municipal executive intervention active.'
-                        : 'Awaiting Line Department Reply (will show in public Q&A feed)'}
+                        ? '⚠️ 3-day SLA breached. Executive intervention active.'
+                        : 'Awaiting Official Reply (published to live public feed)'}
                     </span>
                     <button
                       className="table-action-btn"
-                      style={iss.is_escalated ? { background: '#b91c1c', color: 'white', borderColor: '#991b1b' } : {}}
-                      onClick={() => {
-                        const reply = prompt('Enter municipal executive intervention reply (this will be public to area residents):');
-                        if (reply) {
-                          replyIssueMutation.mutate({ id: iss.id, reply, status: 'Answered' });
-                        }
-                      }}
+                      style={iss.is_escalated
+                        ? { background: '#b91c1c', color: 'white', borderColor: '#991b1b' }
+                        : { background: '#0f766e', color: 'white', borderColor: '#0d9488' }}
+                      onClick={() => setReplyingIssue(iss)}
                     >
-                      <Send size={13} /> {iss.is_escalated ? 'Executive Intervention & Publish' : 'Respond & Publish to Public Feed'}
+                      <Send size={13} /> {iss.is_escalated ? 'Executive Intervention & Reply' : 'Dispatch Response'}
                     </button>
                   </div>
                 )}
@@ -6896,10 +7483,10 @@ function MunicipalDashboard({
             ))}
 
             {filteredGrievances.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px', background: 'white', borderRadius: '12px' }}>
-                <CheckCircle2 size={36} color="#10896b" style={{ margin: '0 auto 10px' }} />
-                <h3>No Grievances in this Filter</h3>
-                <p style={{ color: '#64748b', fontSize: '13px' }}>No citizen reports requiring triage for selected criteria.</p>
+              <div style={{ textAlign: 'center', padding: '48px 20px', background: 'white', borderRadius: '16px', border: '1px solid var(--gray-200)' }}>
+                <CheckCircle2 size={40} color="#10896b" style={{ margin: '0 auto 12px' }} />
+                <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--navy)', margin: '0 0 6px 0' }}>No Inquiries in this Filter</h3>
+                <p style={{ color: '#64748b', fontSize: '13.5px', margin: 0 }}>All citizen inquiries matching the selected criteria have been addressed.</p>
               </div>
             )}
           </div>
@@ -6956,124 +7543,25 @@ function MunicipalDashboard({
         </div>
       )}
 
-      {/* Project Milestone & Data Update Modal */}
+      {/* Project Operations & Stage Auto-Sync Modal */}
       {editingProject && (
-        <div className="modal-overlay" onClick={() => setEditingProject(null)}>
-          <div className="modal-window" onClick={e => e.stopPropagation()}>
-            <div className="modal-window-head">
-              <h3>Update Project Operations · {editingProject.code}</h3>
-              <button onClick={() => setEditingProject(null)}><X size={18} /></button>
-            </div>
+        <ProjectOperationsModal
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+          onSave={(id, data) => updateProjectMutation.mutate({ id, data })}
+          isPending={updateProjectMutation.isPending}
+        />
+      )}
 
-            <form
-              onSubmit={e => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const progress = Number((form.elements.namedItem('progress') as HTMLInputElement).value);
-                const current_step = Number((form.elements.namedItem('current_step') as HTMLSelectElement).value);
-                const status = (form.elements.namedItem('status') as HTMLSelectElement).value;
-                const delay_reason = (form.elements.namedItem('delay_reason') as HTMLInputElement).value;
-                const noise_warning = (form.elements.namedItem('noise_warning') as HTMLInputElement).value;
-                const dust_warning = (form.elements.namedItem('dust_warning') as HTMLInputElement).value;
-                const gmaps_broadcast = (form.elements.namedItem('gmaps_broadcast') as HTMLInputElement).checked;
-
-                updateProjectMutation.mutate({
-                  id: editingProject.id,
-                  data: {
-                    progress,
-                    current_step,
-                    status,
-                    delay_reason,
-                    noise_warning,
-                    dust_warning,
-                    gmaps_broadcast
-                  }
-                });
-              }}
-            >
-              <div className="modal-window-body">
-                <div className="form-group">
-                  <label>Work Status</label>
-                  <select name="status" defaultValue={editingProject.status}>
-                    <option value="In progress">In progress</option>
-                    <option value="Delayed">Delayed (Behind Schedule)</option>
-                    <option value="Upcoming">Upcoming</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Verified Progress Percentage: (0 - 100%)</label>
-                  <input
-                    name="progress"
-                    type="number"
-                    min="0"
-                    max="100"
-                    defaultValue={editingProject.progress}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Amazon Tracker Milestone Step</label>
-                  <select name="current_step" defaultValue={editingProject.current_step || 3}>
-                    {MILESTONE_STEPS.map(s => (
-                      <option key={s.step} value={s.step}>
-                        Step {s.step}: {s.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Official Delay Reason & Explanation (if delayed)</label>
-                  <input
-                    name="delay_reason"
-                    defaultValue={editingProject.delay_reason || ''}
-                    placeholder="e.g. Unmapped underground high-voltage utility cables"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Noise Warning Window & Permitted Hours</label>
-                  <input
-                    name="noise_warning"
-                    defaultValue={editingProject.noise_warning}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Dust Warning Window & Mitigation Schedule</label>
-                  <input
-                    name="dust_warning"
-                    defaultValue={editingProject.dust_warning}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                  <input
-                    type="checkbox"
-                    name="gmaps_broadcast"
-                    id="gmaps_broadcast"
-                    defaultChecked={editingProject.gmaps_broadcast}
-                  />
-                  <label htmlFor="gmaps_broadcast" style={{ fontSize: '13px', fontWeight: 600 }}>
-                    Broadcast Road Closure & Detour to Google Maps Navigation Feed
-                  </label>
-                </div>
-              </div>
-
-              <div className="modal-window-footer">
-                <button type="button" className="logout-nav-button" onClick={() => setEditingProject(null)}>
-                  Cancel
-                </button>
-                <button type="submit" className="admin-nav-button" disabled={updateProjectMutation.isPending}>
-                  {updateProjectMutation.isPending ? 'Saving…' : 'Save Operational Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Municipal Citizen Reply Modal */}
+      {replyingIssue && (
+        <MunicipalReplyModal
+          issue={replyingIssue}
+          onClose={() => setReplyingIssue(null)}
+          onSubmit={(id, reply, status) => replyIssueMutation.mutate({ id, reply, status })}
+          isPending={replyIssueMutation.isPending}
+          officialUser={user}
+        />
       )}
 
       {/* DigSync Conflict Resolution Modal — now replaced by DigSyncConflictPanel */}
@@ -7236,12 +7724,7 @@ function MunicipalDashboard({
                           <div style={{ marginTop: '10px' }}>
                             <button
                               className="table-action-btn"
-                              onClick={() => {
-                                const reply = prompt(`Enter official municipal response to "${iss.message}":`);
-                                if (reply) {
-                                  replyIssueMutation.mutate({ id: iss.id, reply, status: 'Answered' });
-                                }
-                              }}
+                              onClick={() => setReplyingIssue(iss)}
                             >
                               <Send size={13} /> Respond & Publish to Public Feed
                             </button>
