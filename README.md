@@ -3,6 +3,9 @@
 **Utopia** is a full-stack CivicTech infrastructure and municipal operations platform designed for Greater Chennai Corporation (GCC). It bridges the gap between public works execution and citizen transparency by pairing a **Google Maps-style citizen discovery canvas** and an **Amazon-style 7-stage delivery pipeline** with a multi-tier **Municipal & Department Operations Portal**, an automated **DigSync Interdepartmental Coordination Engine**, and a mobile **On-Site Field Supervisor Portal**.
 
 ---
+- Demo link:https://drive.google.com/file/d/10Z5EO2ELuw48d87pLm29CeEjqiyOQPr_/view?usp=sharing
+- Website link:https://15.206.151.241/
+---
 
 ## 🚀 Quick Start
 
