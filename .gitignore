@@ -54,3 +54,8 @@ Thumbs.db
 *.swp
 *.swo
 *.log
+
+# AI
+Agents.md
+AI_GUIDE.md
+ISSUE.md
