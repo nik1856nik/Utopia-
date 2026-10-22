@@ -1,6 +1,6 @@
 # Tests and deployment verification
 
-The suite uses an in-memory SQLite database per test. It does not touch the development/host database. Five regression checks are marked `xfail`: four capture known authorization gaps and one captures the stormwater routing bug tracked in `ISSUE.md`. Pytest reports these as expected failures until the implementation is fixed.
+The suite requires PostgreSQL and creates a private schema per test, then drops that schema. Set `DATABASE_PASSWORD` and any non-default `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, or `DATABASE_USER` values for a disposable PostgreSQL database; never use a production database. Five regression checks are marked `xfail`: four capture known authorization gaps and one captures the stormwater routing bug tracked in `ISSUE.md`.
 
 ## Run backend tests
 
@@ -9,6 +9,8 @@ From the repository root, install the test dependencies into an isolated environ
 ```sh
 uv venv .venv-test --python 3.12
 uv pip install --python .venv-test/bin/python -r test/requirements.txt
+export DATABASE_HOST=localhost DATABASE_NAME=civicgrid DATABASE_USER=civicgrid
+export DATABASE_PASSWORD='YOUR_POSTGRES_PASSWORD'
 .venv-test/bin/python -m pytest test -q
 ```
 
