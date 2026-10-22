@@ -9,7 +9,7 @@ class Issue(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     ref: Mapped[str] = mapped_column(String(30), unique=True, index=True)
     project_id: Mapped[Optional[int]] = mapped_column(ForeignKey('projects.id'), nullable=True, index=True)
-    kind: Mapped[str] = mapped_column(String(30))
+    kind: Mapped[str] = mapped_column(String(180))
     department: Mapped[Optional[str]] = mapped_column(String(100), default='Greater Chennai Corporation', nullable=True)
     message: Mapped[str] = mapped_column(Text)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

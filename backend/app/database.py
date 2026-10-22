@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
 from .config import DB_URL
 
@@ -22,9 +22,9 @@ def get_db():
 db = get_db
 
 def ensure_columns(target_engine):
-    """Ensure newly added columns exist in older SQLite or Postgres databases without breaking."""
-    with target_engine.connect() as conn:
-        for col, col_type in [
+    """Add missing legacy columns without issuing duplicate DDL on PostgreSQL."""
+    column_specs = {
+        'projects': [
             ('current_step', 'INTEGER DEFAULT 3'),
             ('contact_engineer_name', "VARCHAR(120) DEFAULT 'Er. K. Ramanathan'"),
             ('contact_engineer_phone', "VARCHAR(40) DEFAULT '+91 94440 28192'"),
@@ -38,14 +38,8 @@ def ensure_columns(target_engine):
             ('technical_scope', "TEXT"),
             ('funding_program', "VARCHAR(120) DEFAULT 'Municipal Infrastructure Capital Fund'"),
             ('created_by', "VARCHAR(120) DEFAULT 'Official Sanction'")
-        ]:
-            try:
-                conn.execute(text(f"ALTER TABLE projects ADD COLUMN {col} {col_type}"))
-                conn.commit()
-            except Exception:
-                pass
-
-        for col, col_type in [
+        ],
+        'issues': [
             ('department', "VARCHAR(100) DEFAULT 'Greater Chennai Corporation'"),
             ('phone', 'VARCHAR(20)'),
             ('email', 'VARCHAR(100)'),
@@ -55,14 +49,8 @@ def ensure_columns(target_engine):
             ('official_reply', 'TEXT'),
             ('replied_at', 'TIMESTAMP'),
             ('replied_by', 'VARCHAR(120)')
-        ]:
-            try:
-                conn.execute(text(f"ALTER TABLE issues ADD COLUMN {col} {col_type}"))
-                conn.commit()
-            except Exception:
-                pass
-
-        for col, col_type in [
+        ],
+        'conflict_tickets': [
             ('requesting_dept_notified', 'BOOLEAN DEFAULT 0'),
             ('conflicting_dept_notified', 'BOOLEAN DEFAULT 0'),
             ('approved_dept', 'VARCHAR(100)'),
@@ -77,9 +65,25 @@ def ensure_columns(target_engine):
             ('ward_id', 'INTEGER'),
             ('lat', 'FLOAT'),
             ('lng', 'FLOAT'),
-        ]:
-            try:
-                conn.execute(text(f"ALTER TABLE conflict_tickets ADD COLUMN {col} {col_type}"))
-                conn.commit()
-            except Exception:
-                pass
+        ],
+    }
+
+    for table, columns in column_specs.items():
+        existing_tables = inspect(target_engine).get_table_names()
+        if table not in existing_tables:
+            continue
+        existing_columns = {column['name'] for column in inspect(target_engine).get_columns(table)}
+        for col, col_type in columns:
+            if col in existing_columns:
+                continue
+            with target_engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+            existing_columns.add(col)
+
+    # PostgreSQL enforces VARCHAR lengths; SQLite does not. Widen old installs
+    # to match Issue.kind in the current ORM model before seeding or writes.
+    if target_engine.dialect.name == 'postgresql' and 'issues' in inspect(target_engine).get_table_names():
+        kind = next((column for column in inspect(target_engine).get_columns('issues') if column['name'] == 'kind'), None)
+        if kind and getattr(kind['type'], 'length', None) is not None and kind['type'].length < 180:
+            with target_engine.begin() as conn:
+                conn.execute(text('ALTER TABLE issues ALTER COLUMN kind TYPE VARCHAR(180)'))
