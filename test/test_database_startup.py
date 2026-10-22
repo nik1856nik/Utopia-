@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 from app import database
 from app import main
@@ -24,8 +24,8 @@ def test_get_db_yields_session_and_closes(monkeypatch):
     assert session.closed
 
 
-def test_ensure_columns_adds_legacy_columns_and_is_repeatable():
-    engine = create_engine("sqlite://")
+def test_ensure_columns_adds_legacy_columns_and_is_repeatable(isolated_engine):
+    engine = isolated_engine
     with engine.begin() as conn:
         conn.execute(text("CREATE TABLE projects (id INTEGER PRIMARY KEY)"))
         conn.execute(text("CREATE TABLE issues (id INTEGER PRIMARY KEY)"))
@@ -39,7 +39,6 @@ def test_ensure_columns_adds_legacy_columns_and_is_repeatable():
     assert {"current_step", "technical_scope", "created_by"} <= project_cols
     assert {"department", "official_reply", "pincode"} <= issue_cols
     assert {"approved_dept", "lat", "rescheduled_status"} <= conflict_cols
-    engine.dispose()
 
 
 def test_startup_initializes_and_seeds(monkeypatch):

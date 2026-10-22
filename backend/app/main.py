@@ -42,7 +42,7 @@ app.include_router(broadcasts_router)
 def on_startup():
     # Create all tables if not exist
     Base.metadata.create_all(bind=engine)
-    # Ensure any dynamic columns exist on SQLite or Postgres
+    # Ensure columns from prior PostgreSQL schema versions exist.
     ensure_columns(engine)
     # Seed initial demo data
     with SessionLocal() as s:

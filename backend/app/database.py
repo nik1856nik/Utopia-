@@ -2,10 +2,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
 from .config import DB_URL
 
-engine = create_engine(
-    DB_URL,
-    connect_args={'check_same_thread': False} if DB_URL.startswith('sqlite') else {}
-)
+engine = create_engine(DB_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
 
 class Base(DeclarativeBase):
@@ -33,7 +30,7 @@ def ensure_columns(target_engine):
             ('contact_contractor_phone', "VARCHAR(40) DEFAULT '+91 98841 55210'"),
             ('noise_warning', "VARCHAR(200) DEFAULT 'Permitted high-noise window: 22:00 - 04:00'"),
             ('dust_warning', "VARCHAR(200) DEFAULT 'Trenching dust window: 09:00 - 14:00'"),
-            ('gmaps_broadcast', "BOOLEAN DEFAULT 1"),
+            ('gmaps_broadcast', "BOOLEAN DEFAULT TRUE"),
             ('detour_advice', "VARCHAR(200) DEFAULT 'Traffic diversion via Panagal Park'"),
             ('technical_scope', "TEXT"),
             ('funding_program', "VARCHAR(120) DEFAULT 'Municipal Infrastructure Capital Fund'"),
@@ -44,15 +41,15 @@ def ensure_columns(target_engine):
             ('phone', 'VARCHAR(20)'),
             ('email', 'VARCHAR(100)'),
             ('pincode', 'VARCHAR(6)'),
-            ('is_question', 'BOOLEAN DEFAULT 0'),
-            ('intimated_in_advance', 'BOOLEAN DEFAULT 0'),
+            ('is_question', 'BOOLEAN DEFAULT FALSE'),
+            ('intimated_in_advance', 'BOOLEAN DEFAULT FALSE'),
             ('official_reply', 'TEXT'),
             ('replied_at', 'TIMESTAMP'),
             ('replied_by', 'VARCHAR(120)')
         ],
         'conflict_tickets': [
-            ('requesting_dept_notified', 'BOOLEAN DEFAULT 0'),
-            ('conflicting_dept_notified', 'BOOLEAN DEFAULT 0'),
+            ('requesting_dept_notified', 'BOOLEAN DEFAULT FALSE'),
+            ('conflicting_dept_notified', 'BOOLEAN DEFAULT FALSE'),
             ('approved_dept', 'VARCHAR(100)'),
             ('rescheduled_dept', 'VARCHAR(100)'),
             ('rescheduled_start', 'DATE'),
@@ -80,9 +77,8 @@ def ensure_columns(target_engine):
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
             existing_columns.add(col)
 
-    # PostgreSQL enforces VARCHAR lengths; SQLite does not. Widen old installs
-    # to match Issue.kind in the current ORM model before seeding or writes.
-    if target_engine.dialect.name == 'postgresql' and 'issues' in inspect(target_engine).get_table_names():
+    # Widen old PostgreSQL installs to match Issue.kind before seeding or writes.
+    if 'issues' in inspect(target_engine).get_table_names():
         kind = next((column for column in inspect(target_engine).get_columns('issues') if column['name'] == 'kind'), None)
         if kind and getattr(kind['type'], 'length', None) is not None and kind['type'].length < 180:
             with target_engine.begin() as conn:
