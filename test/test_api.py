@@ -130,10 +130,22 @@ def test_geocoding_endpoints_and_input_validation(client, monkeypatch):
     from app.routers import geocode
 
     monkeypatch.setattr(geocode, "resolve_pincode_coordinates", lambda pin: {"locality": "Fake", "lat": 13.0, "lng": 80.0})
+    monkeypatch.setattr(geocode, "reverse_geocode_coordinates", lambda lat, lng: {
+        "locality": "T. Nagar", "pincode": "600017", "lat": lat, "lng": lng,
+    })
     assert client.get("/api/geocode/pincode?pin=600017").json()["locality"] == "Fake"
     assert client.get("/api/geocode/pincode?pin=12").status_code == 400
     reverse = client.get("/api/geocode/reverse?lat=13.04&lng=80.23").json()
-    assert reverse["lat"] == 13.04 and reverse["pincode"] == "600001"
+    assert reverse["lat"] == 13.04 and reverse["pincode"] == "600017"
+    assert reverse["locality"] == "T. Nagar"
+    assert client.get("/api/geocode/reverse?lat=91&lng=80").status_code == 422
+    assert client.get("/api/geocode/reverse?lat=13&lng=181").status_code == 422
+
+    def reverse_unavailable(lat, lng):
+        raise TimeoutError("provider unavailable")
+
+    monkeypatch.setattr(geocode, "reverse_geocode_coordinates", reverse_unavailable)
+    assert client.get("/api/geocode/reverse?lat=13&lng=80").status_code == 502
 
 
 def test_conflict_scan_ticket_list_resolution_and_reschedule(client, make_project, make_ticket, auth_headers, token_for):

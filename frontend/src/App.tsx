@@ -375,27 +375,9 @@ export default function App() {
 
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
-  // Approximate (city-level) fallback using the network IP, resolved by the backend
-  const detectByIp = async (reason: string) => {
-    try {
-      const res = await fetchApi<{ pincode: string | null; locality: string; lat: number; lng: number }>('/geocode/ip');
-      setToastMessage(`${reason} Using approximate location: ${res.locality}${res.pincode ? ` (PIN ${res.pincode})` : ''}.`);
-      if (res.pincode) {
-        setResolvedLocation({ center: [res.lat, res.lng], zoom: 14, locality: res.locality, pincode: res.pincode });
-        handleSelectResidentPin(res.pincode);
-      } else {
-        setResolvedLocation({ center: [res.lat, res.lng], zoom: 13, locality: res.locality });
-      }
-    } catch {
-      setToastMessage(`${reason} Please enter your PIN code manually.`);
-    }
-  };
-
   const handleDetectLocation = () => {
     if (!window.isSecureContext || !navigator.geolocation) {
-      // Browsers silently block GPS on non-HTTPS pages (no prompt is shown), so use the IP fallback
-      setIsDetectingLocation(true);
-      detectByIp('Precise GPS needs a secure (HTTPS) connection.').finally(() => setIsDetectingLocation(false));
+      setToastMessage('Current location needs a secure (HTTPS) connection and browser location access. Enter your PIN code instead.');
       return;
     }
     setIsDetectingLocation(true);
@@ -405,9 +387,9 @@ export default function App() {
         setIsDetectingLocation(false);
       },
       async (err) => {
-        await detectByIp(err.code === err.PERMISSION_DENIED
-          ? 'Location permission was denied.'
-          : 'Could not read your device location.');
+        setToastMessage(err.code === err.PERMISSION_DENIED
+          ? 'Location permission was denied. Allow location access or enter your PIN code.'
+          : 'Could not read your device location. Check browser location access or enter your PIN code.');
         setIsDetectingLocation(false);
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
