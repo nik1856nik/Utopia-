@@ -1,7 +1,28 @@
 import os
+from sqlalchemy.engine import URL, make_url
 
-DB_URL = os.getenv('DATABASE_URL', 'sqlite:///./civicgrid.db')
-JWT_SECRET = os.getenv("JWT_SECRET", "utopia-super-secret-key-2026")
+_database_url = os.getenv("DATABASE_URL", "").strip()
+if _database_url:
+    if make_url(_database_url).drivername != "postgresql+psycopg":
+        raise RuntimeError("Only PostgreSQL is supported. Set DATABASE_URL to a postgresql+psycopg:// URL.")
+    DB_URL = _database_url
+else:
+    _database_password = os.getenv("DATABASE_PASSWORD")
+    if not _database_password:
+        raise RuntimeError("Set DATABASE_URL or DATABASE_PASSWORD and PostgreSQL connection settings.")
+    DB_URL = URL.create(
+        "postgresql+psycopg",
+        username=os.getenv("DATABASE_USER", "civicgrid"),
+        password=_database_password,
+        host=os.getenv("DATABASE_HOST", "localhost"),
+        port=int(os.getenv("DATABASE_PORT", "5432")),
+        database=os.getenv("DATABASE_NAME", "civicgrid"),
+    )
+NOMINATIM_BASE_URL = os.getenv("NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org").rstrip("/")
+NOMINATIM_USER_AGENT = os.getenv("NOMINATIM_USER_AGENT", "UtopiaMunicipalPlatform/3.0")
+JWT_SECRET = os.getenv("JWT_SECRET", "").strip()
+if len(JWT_SECRET) < 32:
+    raise RuntimeError("JWT_SECRET is required and must be at least 32 characters; generate one with openssl rand -hex 48.")
 JWT_ALGORITHM = "HS256"
 
 # Demo authorized municipal officers with Employee IDs (Badge IDs) and supported aliases

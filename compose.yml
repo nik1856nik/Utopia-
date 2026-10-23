@@ -1,0 +1,82 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: civicgrid
+      POSTGRES_USER: civicgrid
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U civicgrid -d civicgrid"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: civicgrid
+      DATABASE_USER: civicgrid
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      NOMINATIM_BASE_URL: ${NOMINATIM_BASE_URL:-https://nominatim.openstreetmap.org}
+      NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-UtopiaMunicipalPlatform/3.0}
+      UVICORN_RELOAD: ${UVICORN_RELOAD:-0}
+    command:
+      - sh
+      - -c
+      - |
+        if [ "$${UVICORN_RELOAD}" = "1" ]; then
+          exec uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+        else
+          exec uvicorn app.main:app --host 0.0.0.0 --port 8001
+        fi
+    ports:
+      - "${API_PORT:-8001}:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./backend/app
+          target: /app/app
+
+  web:
+    build:
+      context: ./frontend
+      target: ${FRONTEND_BUILD_TARGET:-runtime}
+    ports:
+      - "${WEB_PORT:-5174}:${WEB_CONTAINER_PORT:-80}"
+    environment:
+      API_PROXY_TARGET: http://api:8001
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: sync+restart
+          path: ./frontend/vite.config.ts
+          target: /app/vite.config.ts
+
+volumes:
+  pgdata:

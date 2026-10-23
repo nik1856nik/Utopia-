@@ -2,50 +2,76 @@
 
 **Utopia** is a full-stack CivicTech infrastructure and municipal operations platform designed for Greater Chennai Corporation (GCC). It bridges the gap between public works execution and citizen transparency by pairing a **Google Maps-style citizen discovery canvas** and an **Amazon-style 7-stage delivery pipeline** with a multi-tier **Municipal & Department Operations Portal**, an automated **DigSync Interdepartmental Coordination Engine**, and a mobile **On-Site Field Supervisor Portal**.
 
----
-- Demo link:https://drive.google.com/file/d/10Z5EO2ELuw48d87pLm29CeEjqiyOQPr_/view?usp=sharing
-- Website link:https://15.206.151.241/
----
-
 ## 🚀 Quick Start
 
-Launch the entire full-stack Utopia platform using the unified start script:
+Start the complete service locally with Docker Compose. From the repository root, create a private `.env` file with fresh secrets (run once; keep this file out of version control):
 
 ```sh
-./start.sh
+printf 'POSTGRES_PASSWORD=%s\nJWT_SECRET=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 48)" > .env
 ```
 
-The script automatically sets up the Python virtual environment, installs backend and frontend dependencies, frees up occupied ports, and launches both services:
+Then build and launch PostgreSQL, the API, and Nginx:
+
+```sh
+docker compose -f compose.yml up --build -d
+docker compose -f compose.yml ps
+```
+
+Compose reads `.env`, passes the database password to PostgreSQL and the API, and passes the JWT secret to the API. The backend contains no built-in database password or signing key; it creates the PostgreSQL connection URL from the injected settings. Compose waits for PostgreSQL health before starting the API, and for API health before starting Nginx. The PostgreSQL data persists in the `pgdata` volume. The database port is bound to localhost for development and tests. Open:
 - **🌍 Web Application**: [http://localhost:5174](http://localhost:5174)
 - **📡 Backend REST API**: [http://localhost:8001](http://localhost:8001)
 - **📚 Interactive API Documentation (Swagger)**: [http://localhost:8001/docs](http://localhost:8001/docs)
 - **🩺 Health Check**: [http://localhost:8001/api/health](http://localhost:8001/api/health)
 
-Press `Ctrl+C` in the terminal to stop all running services cleanly.
+Compose replaces the old launcher for the full service lifecycle:
+
+```sh
+docker compose -f compose.yml up --build       # foreground
+docker compose -f compose.yml up --build -d    # background
+docker compose -f compose.yml ps               # status
+docker compose -f compose.yml logs -f          # follow logs
+docker compose -f compose.yml restart          # restart services
+docker compose -f compose.yml down             # stop services; keep database data
+```
+
+Use `docker compose -f compose.yml down -v` to also delete the PostgreSQL data volume. Set `WEB_PORT`, `API_PORT`, or `DB_PORT` in `.env` to choose different host ports if a port is already occupied. The application is PostgreSQL-only; when running the API outside Compose, set `DATABASE_URL` to a `postgresql+psycopg://` connection string and set `JWT_SECRET` to a generated 48-byte key. The API refuses to start if the JWT key is missing or shorter than 32 characters.
+
+For source development with Vite hot reload and automatic API reload, add these optional settings to `.env`:
+
+```dotenv
+FRONTEND_BUILD_TARGET=development
+WEB_CONTAINER_PORT=5174
+UVICORN_RELOAD=1
+```
+
+Then run `docker compose -f compose.yml up --build -d` followed by `docker compose -f compose.yml watch`. Remove those settings and rebuild to return to the production Nginx frontend.
+
+#### PostgreSQL password mismatch after changing `.env`
+
+PostgreSQL applies `POSTGRES_PASSWORD` only when it initializes an empty `pgdata` volume. Editing that value later does not update the password stored in the existing database, so the API can report `password authentication failed for user "civicgrid"`. Keep the original `.env` password for an existing volume. If it is unavailable, leave the volume intact, update the role password from inside the database container to the current `.env` value, then restart the API:
+
+```sh
+docker compose -f compose.yml up -d db
+docker compose -f compose.yml exec -T db sh -c "psql -U postgres -d postgres -v new_password=\"\$POSTGRES_PASSWORD\" -c \"ALTER ROLE civicgrid WITH PASSWORD :'new_password';\""
+docker compose -f compose.yml restart api
+```
+
+Do not use `docker compose down -v` as a password fix; it deletes the database volume and its data.
 
 ---
 
 ## 🧪 Acceptance Testing & API Verification
 
-Run the automated end-to-end integration test suite against the backend:
+Backend and deployment tests, including the required PostgreSQL test setup, are documented in [`test/README.md`](test/README.md):
 
 ```sh
-python scratch/test_acceptance.py
+docker compose -f compose.yml up -d db
+export DATABASE_HOST=localhost DATABASE_NAME=civicgrid DATABASE_USER=civicgrid
+export DATABASE_PASSWORD='YOUR_POSTGRES_PASSWORD'
+uv run --with-requirements test/requirements.txt --with pytest-cov pytest test -q
 ```
 
-This validates 12 critical backend integration test cases:
-1. Department directory retrieval (`/api/departments`).
-2. Official authentication and role enforcement (`/api/auth/login`).
-3. Mismatched/unauthorized department login rejection (HTTP 403 Forbidden).
-4. Department-scoped project isolation.
-5. Department spoofing prevention on project creation.
-6. Works register synchronisation.
-7. Cross-department modification prevention.
-8. Dynamic geocoding of unseeded PIN codes (e.g. 600028 R.A. Puram).
-9. Decoupled geographic queries for PIN codes with zero projects.
-10. Reverse geocoding of coordinates to Chennai localities.
-11. Invalid PIN code handling (HTTP 404).
-12. Grievance SLA routing and escalation.
+Use a disposable PostgreSQL database for tests. The suite creates and removes a separate schema for each test. For Compose startup, Nginx, and persistent-volume checks, follow `test/README.md`.
 
 ---
 
@@ -60,7 +86,8 @@ This validates 12 critical backend integration test cases:
 - **Location & Postal Code Search**:
   - **6-Digit PIN Code Search**: Instant search across Indian postal codes (`600005`, `600017`, `600004`, `600023`, `600127`, etc.) with centroid centering.
   - **Dynamic Geocoding Engine**: Offline centroid cache for major Chennai localities with automatic fallback to OpenStreetMap Nominatim for unseeded PIN codes.
-  - **GPS Auto-Detection**: One-click "Use Current Location" button that grabs GPS coordinates and reverse-geocodes them to the nearest ward and postal code.
+  - **GPS Auto-Detection**: With browser permission on HTTPS (or localhost), the app sends device coordinates to the backend for reverse geocoding to a locality and Indian postal code. If GPS is unavailable, residents can enter a PIN manually.
+  - Reverse geocoding uses OpenStreetMap's public Nominatim service by default. Device coordinates are sent to that service; results are cached and requests are limited to one per second. Operators can configure `NOMINATIM_BASE_URL` and `NOMINATIM_USER_AGENT`. Follow the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) and retain OpenStreetMap attribution when changing geocoding providers.
   - **Quick Locality Filter Chips**: Instant one-click chips for *Triplicane (600005)*, *Ayanavaram (600023)*, *T. Nagar (600017)*, *Mylapore (600004)*, *Melakottaiyur (600127)*, etc.
 - **Categorical & Keyword Filtering**:
   - Filter by category: *All Works*, *Drainage & Stormwater*, *Metro Water*, *Roads & Paving*, *Electricity (TANGEDCO)*, *Telecom Fibre*, *Delayed*, *Road Closures*.
@@ -205,7 +232,7 @@ This validates 12 critical backend integration test cases:
 | **POST** | `/api/onsite/submissions` | Submit on-site progress, photo, blocker, shift log, or delay | Onsite / Official / Admin |
 | **PATCH**| `/api/onsite/submissions/{id}/status` | Update field submission status (`Approved`, `Reviewing`) | Official / Admin |
 | **GET** | `/api/geocode/pincode` | Resolve 6-digit Indian PIN code to locality and coordinates | Public |
-| **GET** | `/api/geocode/reverse` | Reverse-geocode coordinates to Chennai ward and postal code | Public |
+| **GET** | `/api/geocode/reverse` | Resolve GPS/map coordinates to locality and Indian postal code via OpenStreetMap Nominatim | Public |
 | **POST** | `/api/whatsapp/broadcast` | Broadcast localized advisory to registered citizens in a PIN code | Official / Admin |
 | **GET** | `/api/broadcasts/logs` | Fetch audit logs of dispatched citizen SMS/WhatsApp advisories | Official / Admin |
 | **GET** | `/api/health` | Service health status and version check | Public |
