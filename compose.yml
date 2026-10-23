@@ -35,9 +35,9 @@ services:
       - -c
       - |
         if [ "$${UVICORN_RELOAD}" = "1" ]; then
-          exec uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+          exec uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
         else
-          exec uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8001
+          exec uvicorn app.main:app --host 0.0.0.0 --port 8001
         fi
     ports:
       - "${API_PORT:-8001}:8001"

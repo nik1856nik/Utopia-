@@ -4,14 +4,10 @@
 
 ## 🚀 Quick Start
 
-Start the complete service with Docker Compose. Create a root `.env` file first:
+Start the complete service locally with Docker Compose. From the repository root, create a private `.env` file with fresh secrets (run once; keep this file out of version control):
 
 ```sh
-POSTGRES_PASSWORD=replace-with-a-long-random-password
-JWT_SECRET=replace-with-another-long-random-secret
-# Optional reverse-geocoding provider settings
-NOMINATIM_BASE_URL=https://nominatim.openstreetmap.org
-NOMINATIM_USER_AGENT=UtopiaMunicipalPlatform/3.0
+printf 'POSTGRES_PASSWORD=%s\nJWT_SECRET=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 48)" > .env
 ```
 
 Then build and launch PostgreSQL, the API, and Nginx:
@@ -21,7 +17,7 @@ docker compose -f compose.yml up --build -d
 docker compose -f compose.yml ps
 ```
 
-Compose waits for PostgreSQL health before starting the API, and for API health before starting Nginx. The PostgreSQL data persists in the `pgdata` volume. The database port is bound to localhost for development and tests. Open:
+Compose reads `.env`, passes the database password to PostgreSQL and the API, and passes the JWT secret to the API. The backend contains no built-in database password or signing key; it creates the PostgreSQL connection URL from the injected settings. Compose waits for PostgreSQL health before starting the API, and for API health before starting Nginx. The PostgreSQL data persists in the `pgdata` volume. The database port is bound to localhost for development and tests. Open:
 - **🌍 Web Application**: [http://localhost:5174](http://localhost:5174)
 - **📡 Backend REST API**: [http://localhost:8001](http://localhost:8001)
 - **📚 Interactive API Documentation (Swagger)**: [http://localhost:8001/docs](http://localhost:8001/docs)
@@ -38,7 +34,7 @@ docker compose -f compose.yml restart          # restart services
 docker compose -f compose.yml down             # stop services; keep database data
 ```
 
-Use `docker compose -f compose.yml down -v` to also delete the PostgreSQL data volume. Set `WEB_PORT`, `API_PORT`, or `DB_PORT` in `.env` to choose different host ports if a port is already occupied. The application is PostgreSQL-only; when running the API outside Compose, set `DATABASE_URL` to a `postgresql+psycopg://` connection string.
+Use `docker compose -f compose.yml down -v` to also delete the PostgreSQL data volume. Set `WEB_PORT`, `API_PORT`, or `DB_PORT` in `.env` to choose different host ports if a port is already occupied. The application is PostgreSQL-only; when running the API outside Compose, set `DATABASE_URL` to a `postgresql+psycopg://` connection string and set `JWT_SECRET` to a generated 48-byte key. The API refuses to start if the JWT key is missing or shorter than 32 characters.
 
 For source development with Vite hot reload and automatic API reload, add these optional settings to `.env`:
 
@@ -49,6 +45,18 @@ UVICORN_RELOAD=1
 ```
 
 Then run `docker compose -f compose.yml up --build -d` followed by `docker compose -f compose.yml watch`. Remove those settings and rebuild to return to the production Nginx frontend.
+
+#### PostgreSQL password mismatch after changing `.env`
+
+PostgreSQL applies `POSTGRES_PASSWORD` only when it initializes an empty `pgdata` volume. Editing that value later does not update the password stored in the existing database, so the API can report `password authentication failed for user "civicgrid"`. Keep the original `.env` password for an existing volume. If it is unavailable, leave the volume intact, update the role password from inside the database container to the current `.env` value, then restart the API:
+
+```sh
+docker compose -f compose.yml up -d db
+docker compose -f compose.yml exec -T db sh -c "psql -U postgres -d postgres -v new_password=\"\$POSTGRES_PASSWORD\" -c \"ALTER ROLE civicgrid WITH PASSWORD :'new_password';\""
+docker compose -f compose.yml restart api
+```
+
+Do not use `docker compose down -v` as a password fix; it deletes the database volume and its data.
 
 ---
 

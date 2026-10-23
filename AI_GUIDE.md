@@ -10,8 +10,9 @@ Utopia is a Chennai public-works transparency and operations web app. Citizens b
 
 - Frontend: React + TypeScript + Vite, in `frontend/`. The application is largely one large file: `frontend/src/App.tsx` (UI, route selection, API calls, types, and page components). `main.tsx` mounts React Query and BrowserRouter; `style.css` contains styling.
 - Backend: FastAPI + SQLAlchemy, in `backend/app/`. `main.py` registers routers and initializes the database and seed data.
-- Persistence is PostgreSQL only. Outside Compose, configure `DATABASE_URL` with the `postgresql+psycopg://` driver; Compose passes PostgreSQL connection fields and the app safely builds its URL. Database files live in the `pgdata` volume. `JWT_SECRET` is required by Compose.
+- Persistence is PostgreSQL only. Outside Compose, configure `DATABASE_URL` with the `postgresql+psycopg://` driver; Compose passes PostgreSQL connection fields and the app safely builds its URL. Database files live in the `pgdata` volume. `JWT_SECRET` is required and must contain at least 32 characters; there is no built-in default signing key.
 - `docker compose -f compose.yml up --build -d` starts PostgreSQL, the API, and Nginx. Nginx serves the built SPA on port `5174` and proxies `/api` to the API on port `8001`. Compose handles build, start, stop, restart, status, and logs; Compose Watch plus optional environment settings provide the development reload workflow.
+- PostgreSQL reads `POSTGRES_PASSWORD` when `pgdata` is initialized only. Changing `.env` later does not alter the existing database role; use the documented `ALTER ROLE` recovery command without deleting the volume.
 - Dependencies: `backend/requirements.txt`, `frontend/package.json`.
 
 ## Runtime request flow

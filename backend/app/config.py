@@ -20,7 +20,9 @@ else:
     )
 NOMINATIM_BASE_URL = os.getenv("NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org").rstrip("/")
 NOMINATIM_USER_AGENT = os.getenv("NOMINATIM_USER_AGENT", "UtopiaMunicipalPlatform/3.0")
-JWT_SECRET = os.getenv("JWT_SECRET", "utopia-super-secret-key-2026")
+JWT_SECRET = os.getenv("JWT_SECRET", "").strip()
+if len(JWT_SECRET) < 32:
+    raise RuntimeError("JWT_SECRET is required and must be at least 32 characters; generate one with openssl rand -hex 48.")
 JWT_ALGORITHM = "HS256"
 
 # Demo authorized municipal officers with Employee IDs (Badge IDs) and supported aliases
